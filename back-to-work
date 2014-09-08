@@ -1,0 +1,165 @@
+#!/bin/dash
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+cd $(dirname $0)
+lock_path=../dex-lock
+PATH=:$lock_path:$PATH
+
+package=$1
+if [ -z "$package" ] ; then
+   echo "Usage: ${0##*/} { package-name}"
+   echo "  This is the cluster package monitor. It can run on multiple node and only"
+   echo "  one instance switch from stand-by to active state to start the package"
+   echo "  services. The active one will poll and monitor the health of the package"
+   echo "  and in case of failure will shutdown it letting another monitor to try"
+   echo "  to start it again on another node."
+   echo "  Usually it's started with the \"service start <packag-name>\" command."
+   exit 0
+fi
+
+pace=$(control-scripts/$package echo pace)
+timeout=$(control-scripts/$package echo timeout)
+start_timeout=$(control-scripts/$package echo start_timeout)
+stop_timeout=$(control-scripts/$package echo stop_timeout)
+pkg_state="unknown"
+role="stand-by"
+stop="false"
+
+if ! mkdir temp/monitor_lockdir_$package 2> /dev/null ; then
+   echo temp/monitor_lockdir_$1 already exist. back-to-work is already running for package $1.
+   exit 1
+fi
+
+init-lock $package $timeout $stop_timeout
+
+#do not immidiately exit on kill! we must stop the package before quitting!
+trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; stop="true"' HUP
+trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; stop="true"' INT
+trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; stop="true"' TERM
+
+quit () {
+   pkill -x -f "ssh -MNf -o ControlPath=~/.ssh/lock-server-socket-%h"
+   rmdir temp/monitor_lockdir_$package
+   release-lock $package
+   exit $1
+}
+
+echo "$(date) starting as stand-by node." & sleep_pid=$!
+while true ; do
+   wait $sleep_pid ; sleep $pace & sleep_pid=$!
+   case $role in
+    stand-by)
+      [ "$stop" = "true" ] && quit 0
+
+      if get-lock $package $timeout $stop_timeout $pace ; then
+         echo "$(date) got lock. switch to active node."
+         role="active"
+      fi
+    ;;
+
+    active)
+      if ! get-lock $package $timeout $stop_timeout $pace ; then
+         echo "$(date) lock lost. shutting down."
+         stop="true"
+      fi
+
+      old_state=$pkg_state
+      #handle all cases of the package state machine
+      case $pkg_state in
+       starting)
+         if ! pkill -0 -x -f "$shell_cmd control-scripts/$package start" ; then
+            wait $start_pid
+            if [ $? -eq 0 ] ; then
+               pkg_state="running"
+            else
+               pkg_state="failing"
+            fi
+         else
+            start_timeout=$(($start_timeout-$pace))
+         fi
+
+         if [ $start_timeout -le 0 ] ; then
+            echo "$(date) timeout waiting for package to start."
+            pkill -x -f "$shell_cmd control-scripts/$package start"
+            control-scripts/$package stop >> log/$package.log &
+            stop_pid=$!
+            pkg_state="failing"
+         fi
+       ;;
+
+       running)
+         #status function returns: 0 up, 1 down, 2 degraded
+         control-scripts/$package status >> log/$package.log 
+         pkg_status=$?
+         if [ "$stop" = "true" ] ; then
+            control-scripts/$package stop >> log/$package.log &
+            pkg_state="halting"
+         elif [ $pkg_status -ne 0 ] ; then
+            control-scripts/$package stop >> log/$package.log &
+            pkg_state="failing"
+         fi
+       ;;
+
+       halting|failing)
+         if ! pkill -0 -x -f "$shell_cmd control-scripts/$package stop" ; then
+            wait $stop_pid
+            if [ $? -eq 0 ] ; then
+               [ "$pkg_state" = "halting" ] && pkg_state="halted"
+               [ "$pkg_state" = "failing" ] && pkg_state="failed"
+            else
+               pkg_state="failed"
+            fi
+         else
+            stop_timeout=$(($stop_timeout-$pace))
+         fi
+
+         if [ $stop_timeout -le 0 ] ; then
+            echo "$(date) timeout waiting for package to stop."
+            #pkill -x -f "$shell_cmd control-scripts/$package stop"
+            pkg_state="failed"
+         fi
+       ;;
+
+       halted|failed)
+            echo "$(date) package $pkg_state. exit."
+            [ "$pkg_state" = "halted" ] && ret=0
+            [ "$pkg_state" = "failed" ] && ret=1
+            quit $ret
+       ;;
+
+       unknown)
+         shell_cmd=$(head -1 control-scripts/$package)
+         shell_cmd=${shell_cmd#\#!}
+
+         if pkill -0 -x -f "$shell_cmd control-scripts/$package start" ; then
+            echo "$(date) start script already running. package state is unknown."
+            quit 1
+         fi
+
+         if pkill -0 -x -f "$shell_cmd control-scripts/$package stop" ; then
+            echo "$(date) stop script already running. package state is unknown."
+            quit 1
+         fi
+
+         control-scripts/$package status >> log/$package.log 
+         pkg_status=$?
+         if [ "$stop" = "false" -a $pkg_status -eq 1 ] ; then
+            control-scripts/$package start >> log/$package.log &
+            start_pid=$!
+            pkg_state="starting"
+         else
+            control-scripts/$package stop >> log/$package.log &
+            stop_pid=$!
+            pkg_state="failing"
+         fi 
+       ;;
+      esac # package_state
+
+      if [ "$old_state" != "$pkg_state" ] ; then
+         echo "$(date) package state changes to $pkg_state."
+      fi
+    ;;
+   esac # role
+done

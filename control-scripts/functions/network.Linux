@@ -1,0 +1,66 @@
+# -*-Shell-script-*-
+
+case $1 in
+ start)
+   # start network
+   i=0
+   eval ip=\$ip_$i
+   while [ -n "$ip" ] ; do
+      eval prefix=\$prefix_$i
+      eval netdev=\$netdev_$i
+
+      if arping -q -c 2 -w 3 -D -I $netdev $ip ; then
+         ip addr add $ip/$prefix dev $netdev
+         arping -q -U -c 2 -I $netdev $ip
+      else
+         #ip address in use
+         echo "$(date) ip address $ip is in use."
+         exit 1
+      fi
+
+      i=$(($i+1))
+      eval ip=\$ip_$i
+   done
+ ;;
+
+ stop)
+   # stop network
+   i=0
+   eval ip=\$ip_$i
+   while [ -n "$ip" ] ; do
+      eval prefix=\$prefix_$i
+      eval netdev=\$netdev_$i
+
+      if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
+         ip addr del $ip/$prefix dev $netdev
+      fi
+
+      i=$(($i+1))
+      eval ip=\$ip_$i
+   done
+ ;;
+
+ status)
+   num_check=${num_check:-0}
+   failed_check=${failed_check:-0}
+
+   # can return 3 values: 0 up, 1 down, 2 degraded
+   i=0
+   eval ip=\$ip_$i
+   while [ -n "$ip" ] ; do
+      num_check=$(($num_check+1))
+      failed_check=$(($failed_check+1))
+
+      eval prefix=\$prefix_$i
+      eval netdev=\$netdev_$i
+
+      if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
+         failed_check=$(($failed_check-1))
+      fi
+
+      i=$(($i+1))
+      eval ip=\$ip_$i
+   done
+ ;;
+
+esac

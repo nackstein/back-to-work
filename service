@@ -1,0 +1,53 @@
+#!/bin/dash
+
+cd $(dirname $0)
+lock_path=../dex-lock
+
+if [ ! -d $lock_path ] ; then
+   echo "back-to-work needs dex-lock. see README to install it."
+   exit 1
+fi
+
+case $1 in
+ start)
+   if [ -z "$2" ] ; then
+      echo you need to specify a package name.
+      exit 1
+   fi 
+
+   if [ -d temp/monitor_lockdir_"$2" ] ; then
+      echo monitor lockdir already exist. cannot start pkg-mon.
+      exit 1
+   fi 
+   ./back-to-work $2 > log/back-to-work.$2.log &
+ ;;
+
+ stop)
+   printf "sending TERM signal and waiting for package to halt."
+   shell_cmd=$(head -1 back-to-work)
+   shell_cmd=${shell_cmd#\#!}
+   pkill -x -f "$shell_cmd ./back-to-work $2"
+   while pkill -0 -x -f "$shell_cmd ./back-to-work $2" ; do
+      sleep 1
+      printf .
+   done
+   pkill -f "ssh -MNf -o ControlPath=~/.ssh/lock-server-socket-%h"
+   echo " done."
+ ;;
+
+ init)
+   timeout=$(control-scripts/$2 echo timeout)
+   lock/init-lock $2 $timeout
+   preferred_owner=$(control-scripts/$2 echo preferred_owner)
+ ;;
+
+ status)
+   echo "package owner: bho"
+   echo "package state: bho"
+   echo "package tick:  bho"
+ ;;
+
+ *)
+   echo "Usage: ${0##*/} { init | start | stop | status }"
+   echo "  Main script to init, start or stop the package monitor service."
+esac

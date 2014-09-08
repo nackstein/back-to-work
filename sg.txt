@@ -1,0 +1,29 @@
+sg command                                                     function
+
+sg_turs /dev/xxx                                               do_reset
+sg_persist -n -o -G -K $host_key -S $node_key -d $dev          do_register
+sg_persist -n -o -I -S $node_key -d $dev                       do_register_ignore
+sg_persist -n -o -R -T 5 -K $host_key -d $dev                  do_reserve
+sg_persist -n -o -L -T 5 -K $host_key -d $dev                  do_release
+sg_persist -n -o -P -T 5 -K $host_key -S $node_key -d $dev     do_preempt
+sg_persist -n -o -A -T 5 -K $host_key -S $node_key -d $dev     do_preempt_abort
+sg_persist -n -i -k -d $dev                                    get_registration_keys
+sg_persist -n -i -r -d $dev                                    get_reservation_key
+
+
+-n --no-inquiry
+-o --out
+-i --in
+-G --register
+-I --register-ignore
+-S --param-sark=SARK    service action reservation key
+-K --param-rk=RK        reservation key
+-T --prout-type=TYPE    5 = write exclusive registrants only
+-R --reserve
+-L --release
+-P --preempt
+-A --preempt-abort
+-k --read-keys
+-r --read-reservation
+
+-Z --param-aptpl       activate persist through power loss
