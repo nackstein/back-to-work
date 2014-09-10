@@ -1,0 +1,28 @@
+cidr2mask() {
+   local mask=""
+   local i=0
+   local p=$1
+
+   while [ $i -lt 4 ] ; do
+      if [ $p -ge 8 ] ; then
+         p=$(($p-8))
+         mask=${mask}255
+      elif [ $p -gt 0 ] ; then
+         case $p in
+          7) mask=${mask}254 ;;
+          6) mask=${mask}252 ;;
+          5) mask=${mask}248 ;;
+          4) mask=${mask}240 ;;
+          3) mask=${mask}224 ;;
+          2) mask=${mask}192 ;;
+          1) mask=${mask}128 ;;
+         esac
+         p=0
+       else
+          mask=${mask}0
+       fi
+       [ $i -lt 3 ] && mask=$mask.
+       i=$(($i+1))
+   done
+   echo $mask
+}

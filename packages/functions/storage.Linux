@@ -2,37 +2,16 @@
 
 case $1 in
  start)
-   # start network
-
-   i=0
-   eval ip=\$ip_$i
-   while [ -n "$ip" ] ; do
-      eval prefix=\$prefix_$i
-      eval netdev=\$netdev_$i
-
-      if arping -q -c 2 -w 3 -D -I $netdev $ip ; then
-         ip addr add $ip/$prefix dev $netdev
-         arping -q -U -c 2 -I $netdev $ip
-      else
-         #ip address in use
-         echo "$(date) ip address $ip is in use."
-         exit 1
-      fi
-
-      i=$(($i+1))
-      eval ip=\$ip_$i
-   done
-
-   # start storage
-   touch /tmp/$(basename $0).started
-   
    i=0
    eval lun=\$lun_$i
 
    #key=$(gethostip -x $HOSTNAME)
    #try to avoid requiring gethostip to get ip addr in hex
-   key=$(host $HOSTNAME | head -1 | tr . " ")
-   key=${key#$HOSTNAME has address }
+   #key=$(host $HOSTNAME | head -1 | tr . " ")
+   #key=${key#$HOSTNAME has address }
+   #key=$(eval printf %02x%02x%02x%02x $key)
+   key=$(getent hosts lizard | head -1)
+   key=${key% *}
    key=$(eval printf %02x%02x%02x%02x $key)
 
    while [ -n "$lun" ] ; do
@@ -64,21 +43,6 @@ case $1 in
    
    # stop storage
 
-   # stop network
-   i=0
-   eval ip=\$ip_$i
-   while [ -n "$ip" ] ; do
-      eval prefix=\$prefix_$i
-      eval netdev=\$netdev_$i
-
-      if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
-         ip addr del $ip/$prefix dev $netdev
-      fi
-
-      i=$(($i+1))
-      eval ip=\$ip_$i
-   done
-
    exit 0
  ;;
 
@@ -98,23 +62,6 @@ case $1 in
       failed_check=$(($failed_check-1))
    fi
 
-   # monitor network
-   i=0
-   eval ip=\$ip_$i
-   while [ -n "$ip" ] ; do
-      num_check=$(($num_check+1))
-      failed_check=$(($failed_check+1))
-
-      eval prefix=\$prefix_$i
-      eval netdev=\$netdev_$i
-
-      if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
-         failed_check=$(($failed_check-1))
-      fi
-
-      i=$(($i+1))
-      eval ip=\$ip_$i
-   done
    #num_check=$((num_check+$i-1))
    #failed_check=$(($failed_check+$i-1))
 

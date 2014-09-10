@@ -1,0 +1,8 @@
+#!/bin/sh
+
+for f in back-to-work service ; do
+   #some sed don't support -i
+   sed -e "s|^#!.*|#!${1:-/bin/sh}|" < $f > temp123
+   chmod +x temp123
+   mv temp123 $f
+done

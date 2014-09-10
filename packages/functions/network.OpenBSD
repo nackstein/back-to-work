@@ -1,33 +1,5 @@
 # -*-Shell-script-*-
 
-cidr2mask() {
-   local mask="0x"
-   local i=0
-   local p=$1
-
-   while [ $i -lt 4 ] ; do
-      if [ $p -ge 8 ] ; then
-         p=$(($p-8))
-         mask=${mask}ff
-      elif [ $p -gt 0 ] ; then
-         case $p in
-          7) mask=${mask}fe ;;
-          6) mask=${mask}fc ;;
-          5) mask=${mask}f8 ;;
-          4) mask=${mask}f0 ;;
-          3) mask=${mask}e0 ;;
-          2) mask=${mask}c0 ;;
-          1) mask=${mask}80 ;;
-         esac
-         p=0
-       else
-          mask=${mask}00
-       fi
-       i=$(($i+1))
-   done
-   echo $mask
-}
-
 case $1 in
  start)
    # start network
@@ -37,7 +9,7 @@ case $1 in
       eval prefix=\$prefix_$i
       eval netdev=\$netdev_$i
 
-      ifconfig $netdev inet $ip/$prefix alias
+      ifconfig $netdev inet $ip/$prefix alias || exit 1
 
       i=$(($i+1))
       eval ip=\$ip_$i
@@ -50,9 +22,10 @@ case $1 in
    eval ip=\$ip_$i
    while [ -n "$ip" ] ; do
       eval prefix=\$prefix_$i
+      eval netmask=\$netmask_$i
       eval netdev=\$netdev_$i
 
-      if ifconfig $netdev | grep -q -F " $ip netmask $(cidr2mask $prefix) " ; then
+      if ifconfig $netdev | grep -q -F " $ip netmask $netmask " ; then
          ifconfig $netdev inet $ip/$prefix -alias
       fi
 
@@ -73,9 +46,10 @@ case $1 in
       failed_check=$(($failed_check+1))
 
       eval prefix=\$prefix_$i
+      eval netmask=\$netmask_$i
       eval netdev=\$netdev_$i
 
-      if ifconfig $netdev | grep -q -F " $ip netmask $(cidr2mask $prefix) " ; then
+      if ifconfig $netdev | grep -q -F " $ip netmask $netmask " ; then
          failed_check=$(($failed_check-1))
       fi
 
