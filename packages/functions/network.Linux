@@ -1,5 +1,7 @@
 # -*-Shell-script-*-
 
+# configuration: ip prefix { network | netdev }
+
 case $1 in
  start)
    # start network
@@ -9,13 +11,21 @@ case $1 in
       eval prefix=\$prefix_$i
       eval netdev=\$netdev_$i
 
-      if arping -q -c 2 -w 3 -D -I $netdev $ip ; then
-         ip addr add $ip/$prefix dev $netdev
-         arping -q -U -c 2 -I $netdev $ip
-      else
-         #ip address in use
-         echo "$(date) ip address $ip is in use."
-         exit 1
+      #if netdev is not specified we choose it from routing table
+      if [ -z "$netdev" ] ; then
+         eval network=\$network_$i
+         netdev=$(ip route show | grep -F $network/$prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
+      fi
+
+      if [ -n "$netdev" ] ; then
+         if arping -q -c 2 -w 3 -D -I $netdev $ip ; then
+            ip addr add $ip/$prefix dev $netdev
+            arping -q -U -c 2 -I $netdev $ip
+         else
+            #ip address in use
+            echo "$(date) ip address $ip is in use."
+            exit 1
+         fi
       fi
 
       i=$(($i+1))
@@ -31,8 +41,16 @@ case $1 in
       eval prefix=\$prefix_$i
       eval netdev=\$netdev_$i
 
-      if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
-         ip addr del $ip/$prefix dev $netdev
+      #if netdev is not specified we choose it from routing table
+      if [ -z "$netdev" ] ; then
+         eval network=\$network_$i
+         netdev=$(ip route show | grep -F $network/$prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
+      fi
+
+      if [ -n "$netdev" ] ; then
+         if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
+            ip addr del $ip/$prefix dev $netdev
+         fi
       fi
 
       i=$(($i+1))
@@ -41,28 +59,29 @@ case $1 in
  ;;
 
  status)
-   num_check=${num_check:-0}
-   failed_check=${failed_check:-0}
-
    # can return 3 values: 0 up, 1 down, 2 degraded
    i=0
    eval ip=\$ip_$i
    while [ -n "$ip" ] ; do
-      num_check=$(($num_check+1))
-      failed_check=$(($failed_check+1))
-
       eval prefix=\$prefix_$i
       eval netdev=\$netdev_$i
 
-      #cannot check for carrier since we don't know how many seconds the status is old
-      #if ip link show $netdev | grep -q NO-CARRIER ; then
-      #   failed_check=$(($failed_check+1))
-      #fi
-      if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
-         failed_check=$(($failed_check-1))
+      #if netdev is not specified we choose it from routing table
+      if [ -z "$netdev" ] ; then
+         eval network=\$network_$i
+         netdev=$(ip route show | grep -F $network/$prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
       fi
 
-      i=$(($i+1))
+      if [ -n "$netdev" ] ; then
+         num_check=$((num_check+1))
+         if ! ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
+            failed_check=$((failed_check+1))
+         elif ip link show $netdev | grep -q NO-CARRIER ; then
+            failed_check=$((failed_check+1))
+         fi
+      fi
+
+      i=$((i+1))
       eval ip=\$ip_$i
    done
  ;;

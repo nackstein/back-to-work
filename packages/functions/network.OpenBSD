@@ -10,6 +10,7 @@ case $1 in
       eval netdev=\$netdev_$i
 
       ifconfig $netdev inet $ip/$prefix alias || exit 1
+      #TODO try to use traceroute to send gratuitous arp
 
       i=$(($i+1))
       eval ip=\$ip_$i
@@ -35,9 +36,6 @@ case $1 in
  ;;
 
  status)
-   num_check=${num_check:-0}
-   failed_check=${failed_check:-0}
-
    # can return 3 values: 0 up, 1 down, 2 degraded
    i=0
    eval ip=\$ip_$i
