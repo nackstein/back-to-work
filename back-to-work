@@ -90,25 +90,25 @@ while true ; do
          if [ $start_timeout -le 0 ] ; then
             echo "$(date) timeout waiting for package to start."
             pkill -x -f "$shell_cmd packages/$package start"
-            packages/$package stop >> log/$package.log & stop_pid=$!
+            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
             pkg_state="failing"
          fi
        ;;
 
        running)
          if [ "$stop" = "true" ] ; then
-            packages/$package stop >> log/$package.log & stop_pid=$!
+            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
             pkg_state="halting"
             continue 
          fi
 
          #status function returns: 0 up, 1 down, 2 degraded
-         packages/$package status >> log/$package.log 
+         packages/$package status >> log/$package.log 2>&1
          pkg_status=$?
 
          if [ $pkg_status -eq 1 ] ; then
             #package is down... clean stop it anyway
-            packages/$package stop >> log/$package.log & stop_pid=$!
+            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
             pkg_state="failing"
             continue
          fi
@@ -121,7 +121,7 @@ while true ; do
          fi
 
          if [ $healthy_timeout -le 0 ] ; then
-            packages/$package stop >> log/$package.log & stop_pid=$!
+            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
             pkg_state="failing"
             continue
          fi
@@ -168,13 +168,14 @@ while true ; do
             quit 1
          fi
 
-         packages/$package status >> log/$package.log 
+         #status function returns: 0 up, 1 down, 2 degraded
+         packages/$package status >> log/$package.log 2>&1
          pkg_status=$?
          if [ "$stop" = "false" -a $pkg_status -eq 1 ] ; then
-            packages/$package start >> log/$package.log & start_pid=$!
+            packages/$package start >> log/$package.log 2>&1 & start_pid=$!
             pkg_state="starting"
          else
-            packages/$package stop >> log/$package.log & stop_pid=$!
+            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
             pkg_state="failing"
          fi 
        ;;

@@ -28,7 +28,7 @@ case $1 in
          fi
       fi
 
-      i=$(($i+1))
+      i=$((i+1))
       eval ip=\$ip_$i
    done
  ;;
@@ -49,11 +49,11 @@ case $1 in
 
       if [ -n "$netdev" ] ; then
          if ip addr show dev $netdev | grep -q -F " $ip/$prefix " ; then
-            ip addr del $ip/$prefix dev $netdev
+            ip addr del $ip/$prefix dev $netdev || ret=1
          fi
       fi
 
-      i=$(($i+1))
+      i=$((i+1))
       eval ip=\$ip_$i
    done
  ;;

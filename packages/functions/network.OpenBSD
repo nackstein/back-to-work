@@ -12,7 +12,7 @@ case $1 in
       ifconfig $netdev inet $ip/$prefix alias || exit 1
       #TODO try to use traceroute to send gratuitous arp
 
-      i=$(($i+1))
+      i=$((i+1))
       eval ip=\$ip_$i
    done
  ;;
@@ -30,7 +30,7 @@ case $1 in
          ifconfig $netdev inet $ip/$prefix -alias
       fi
 
-      i=$(($i+1))
+      i=$((i+1))
       eval ip=\$ip_$i
    done
  ;;
@@ -40,18 +40,18 @@ case $1 in
    i=0
    eval ip=\$ip_$i
    while [ -n "$ip" ] ; do
-      num_check=$(($num_check+1))
-      failed_check=$(($failed_check+1))
+      num_check=$((num_check+1))
+      failed_check=$((failed_check+1))
 
       eval prefix=\$prefix_$i
       eval netmask=\$netmask_$i
       eval netdev=\$netdev_$i
 
       if ifconfig $netdev | grep -q -F " $ip netmask $netmask " ; then
-         failed_check=$(($failed_check-1))
+         failed_check=$((failed_check-1))
       fi
 
-      i=$(($i+1))
+      i=$((i+1))
       eval ip=\$ip_$i
    done
  ;;

@@ -10,7 +10,7 @@ case $1 in
    #key=$(host $HOSTNAME | head -1 | tr . " ")
    #key=${key#$HOSTNAME has address }
    #key=$(eval printf %02x%02x%02x%02x $key)
-   key=$(getent hosts lizard | head -1)
+   key=$(getent hosts $(hostname) | head -1)
    key=${key% *}
    key=$(eval printf %02x%02x%02x%02x $key)
 
@@ -27,7 +27,7 @@ case $1 in
       #sg_persist --no-inquiry --read-reservation --device=$lun | grep -q "^[[:space:]]*Key=0x$key"
       #sg_persist --no-inquiry --read-keys --device=$lun | grep -q "^[[:space:]]*0x$key"
       
-      i=$(($i+1))
+      i=$((i+1))
       eval lun=\$lun_$i
    done
 
@@ -47,39 +47,15 @@ case $1 in
  ;;
 
  status)
-   num_check=2
-   failed_check=2
-
    # can return 3 values: 0 up, 1 down, 2 degraded
-   
-   # monitor programs
-   if [ -f /tmp/$(basename $0).started ] ; then
-      failed_check=$(($failed_check-1))
-   fi
-   
    # monitor storage
+
+   num_check=$((num_check+1))
+   failed_check=$((failed_check+1))
    if [ -f /tmp/$(basename $0).started ] ; then
-      failed_check=$(($failed_check-1))
+      failed_check=$((failed_check-1))
    fi
 
-   #num_check=$((num_check+$i-1))
-   #failed_check=$(($failed_check+$i-1))
-
-   [ "$failed_check" -eq "$num_check" ] && exit 1
-   [ "$failed_check" -eq "0" ] && exit 0
-   exit 2
  ;;
 
- fence)
-   echo fence ok
- ;;
-
- echo)
-   eval echo \$$2
- ;;
- *)
-   echo "Usage: ${0##*/} { start | stop | status }"
-   echo "This is the custom script for your failover package."
-   echo "Usually this script is called by pkg-mon service."
- ;;
 esac

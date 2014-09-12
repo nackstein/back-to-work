@@ -21,7 +21,7 @@ case $1 in
 
    # can return 3 values: 0 up, 1 down, 2 degraded
    if [ -f /tmp/$(basename $0).started ] ; then
-      failed_check=$(($failed_check-1))
+      failed_check=$((failed_check-1))
    fi
 
    [ "$failed_check" -eq "$num_check" ] && exit 1
