@@ -1,0 +1,62 @@
+#!/bin/sh
+
+# start of configuration section
+
+pace=4
+timeout=20
+#ip_0=192.168.68.68; prefix_0=24; netdev_0=eth0
+ip_0=192.168.68.68; prefix_0=23; network_0=172.22.122.0
+ip_1=192.168.68.69; prefix_1=24; netdev_1=eth0
+start_timeout=10
+stop_timeout=10
+
+# end of configuration section
+
+cd ${0%/*}
+os=$(uname)
+
+case $1 in
+ echo)
+   eval echo \$$2
+ ;;
+
+ start)
+   #each module can exit with 1 on error and stop the start procedure
+   #for maintenance you can wrap all with () and add maintenance module
+   #(
+   #. functions/storage.$os
+   . functions/network.$os
+   # --- programs start ---
+   #)
+   #. functions/maintenance.$os
+
+   #if this point is reached then everything was ok. return 0
+   exit 0
+ ;;
+
+ stop)
+   ret=0
+   # each module should try to not exit and let other modules execute
+   # --- programs stop ---
+   . functions/network.$os
+   #. functions/storage.$os
+   #. functions/maintenance.$os
+
+   #modules can set ret to 1 to signal an error
+   exit $ret
+ ;;
+
+ status)
+   num_check=0
+   failed_check=0
+
+   . functions/network.$os
+   #. functions/storage.$os
+   #. functions/maintenance.$os
+
+   #by default if num_check=0 you will exit with 1. package is down.
+   [ "$failed_check" -eq "$num_check" ] && exit 1
+   [ "$failed_check" -eq "0" ] && exit 0
+   exit 2
+ ;;
+esac

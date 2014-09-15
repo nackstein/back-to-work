@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# start of configuration section
+
+#test package for OpenBSD
+
+pace=4
+timeout=20
+ip_0=10.0.2.20; prefix_0=24; netmask_0=0xffffff00; netdev_0=em0
+ip_1=10.0.2.21; prefix_1=24; netmask_1=0xffffff00; netdev_1=em0
+start_timeout=10
+stop_timeout=10
+
+# end of configuration section
+
+cd ${0%/*}
+os=$(uname)
+
+### start of include functions section #######################
+
+. functions/network.$os
+#. functions/maintenance.$(uname)
+
+#
+# include other functions if package needs them
+#
+
+### do not include functions below this line ##################
+
+case $1 in
+ echo)
+   eval echo \$$2
+ ;;
+ status)
+   num_check=${num_check:-0}
+   failed_check=${failed_check:-0}
+   #by default if num_check=0 you will exit with 1. package is down.
+   [ "$failed_check" -eq "$num_check" ] && exit 1
+   [ "$failed_check" -eq "0" ] && exit 0
+   exit 2
+ ;;
+esac

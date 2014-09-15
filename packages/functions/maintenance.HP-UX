@@ -1,0 +1,20 @@
+# -*-Shell-script-*-
+
+case $1 in
+ start)
+   touch /tmp/$(basename $0).maintenance
+   true
+ ;;
+
+ stop)
+   rm /tmp/$(basename $0).maintenance
+   true
+ ;;
+
+ status)
+   num_check=1
+   failed_check=1
+   [ -f /tmp/$(basename $0).maintenance ] && failed_check=0
+ ;;
+
+esac

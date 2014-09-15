@@ -3,32 +3,34 @@
 case $1 in
  start)
    i=0
-   eval lun=\$lun_$i
+   eval disk=\$disk_$i
 
-   #key=$(gethostip -x $HOSTNAME)
    #try to avoid requiring gethostip to get ip addr in hex
-   #key=$(host $HOSTNAME | head -1 | tr . " ")
-   #key=${key#$HOSTNAME has address }
-   #key=$(eval printf %02x%02x%02x%02x $key)
-   key=$(getent hosts $(hostname) | head -1)
+   key=$(getent hosts $(hostname) | head -1 | tr . " ")
    key=${key% *}
    key=$(eval printf %02x%02x%02x%02x $key)
 
-   while [ -n "$lun" ] ; do
-      #reserve
-      #echo sg_persist --no-inquiry --out --register --param-aptpl --param-sark=$key --device=$lun >&2
-      #echo sg_persist --no-inquiry --out --reserve --prout-type=5 --param-rk=$key --device=$lun >&2
+   while [ -n "$disk" ] ; do
 
-      #release
-      #echo sg_persist --no-inquiry --out --release --prout-type=5 --param-rk=$key --device=$lun >&2
-      #echo sg_persist --no-inquiry --out --register --param-aptpl --param-rk=$key --param-sark=0 --device=$lun >&2
+      #check capabilities
+      if sg_persist --no-inquiry --in --report-capabilities --device=$disk | grep -q " .... " ; then
+         oldkey=$(sg_persist --no-inquiry --in --read-reservation --device=$disk | grep "^ *Key=0x")
+         oldkey=${oldkey#*Key=0x}
 
-      #check
-      #sg_persist --no-inquiry --read-reservation --device=$lun | grep -q "^[[:space:]]*Key=0x$key"
-      #sg_persist --no-inquiry --read-keys --device=$lun | grep -q "^[[:space:]]*0x$key"
-      
+         #register. default param-rk=0. check if register-ignore is bettere option here.
+         sg_persist --no-inquiry --out --register --param-aptpl --param-sark=$key --device=$disk
+   
+         #preempt
+         if [ -n "$oldkey" ] ; then
+            sg_persist --no-inquiry --out --preempt --prout-type=5 --param-rk=$key --param-sark=$oldkey --device=$disk
+         fi
+     
+         #reserve
+         sg_persist --no-inquiry --out --reserve --prout-type=5 --param-rk=$key --device=$disk
+      fi
+
       i=$((i+1))
-      eval lun=\$lun_$i
+      eval disk=\$disk_$i
    done
 
    # start programs
@@ -37,11 +39,31 @@ case $1 in
  ;;
 
  stop)
-   rm /tmp/$(basename $0).started
 
-   # stop programs
+   i=0
+   eval disk=\$disk_$i
+
+   #try to avoid requiring gethostip to get ip addr in hex
+   key=$(getent hosts $(hostname) | head -1 | tr . " ")
+   key=${key% *}
+   key=$(eval printf %02x%02x%02x%02x $key)
+
+   while [ -n "$disk" ] ; do
+
+      if sg_persist --no-inquiry --in --report-capabilities --device=$disk | grep -q " .... " ; then
+         #clear ???
+         sg_persist --no-inquiry --out --clear --param-rk=$key --device=$disk
+
+         ##release
+         #sg_persist --no-inquiry --out --release --prout-type=5 --param-rk=$key --device=$disk
+         #
+         ##de-register. default param-sark=0.
+         #sg_persist --no-inquiry --out --register --param-rk=$key --device=$disk
+      fi
    
-   # stop storage
+      i=$((i+1))
+      eval disk=\$disk_$i
+   done
 
    exit 0
  ;;
@@ -50,6 +72,10 @@ case $1 in
    # can return 3 values: 0 up, 1 down, 2 degraded
    # monitor storage
 
+      #check
+      #sg_persist --no-inquiry --read-reservation --device=$disk | grep -q "^[[:space:]]*Key=0x$key"
+      #sg_persist --no-inquiry --read-keys --device=$disk | grep -q "^[[:space:]]*0x$key"
+      
    num_check=$((num_check+1))
    failed_check=$((failed_check+1))
    if [ -f /tmp/$(basename $0).started ] ; then

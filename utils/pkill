@@ -1,0 +1,28 @@
+#!/bin/dash
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+##Distributed under the terms of a MIT license.
+
+#this script emulate pkill. it's useful for OpenWRT wich lack pkill in default image.
+#warning: this script do not implement all pkill options.
+
+if [ "$1" = "-0" ] ; then
+   signal=0
+   shift
+else
+   signal=TERM
+fi
+
+[ "$1" = "-x" -o "$1" = "-f" ] && shift
+[ "$1" = "-f" -o "$1" = "-x" ] && shift
+
+found=1
+
+#some embedded linux ps do not support -e and -o options.
+{ ps -e -o pid,args || ps ; } | grep "$1$" | grep -v utils/pkill | \
+while read pid b ; do
+   found=0
+   echo kill -$signal $pid $b
+done
+
+exit $found

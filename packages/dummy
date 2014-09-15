@@ -13,6 +13,7 @@ case $1 in
 
  stop)
    rm /tmp/$(basename $0).started
+   exit 0
  ;;
 
  status)

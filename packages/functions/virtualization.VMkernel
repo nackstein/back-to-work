@@ -1,0 +1,63 @@
+# -*-Shell-script-*-
+
+# this module is written for ESXi 5.x/4.x
+
+# configuration: guest vmid
+
+case $1 in
+ start)
+   # start network
+   i=0
+   eval guest=\$guest_$i
+   while [ -n "$guest" ] ; do
+      eval vmid=\$vmid_$i
+      if [ -z "$vmid" ] ; then
+         vmid=$(vim-cmd vmsvc/getallvms | grep $guest | cut -d" " -f1)
+      fi
+
+      vim-cmd vmsvc/power.on $vmid
+
+      i=$((i+1))
+      eval guest=\$guest_$i
+   done
+ ;;
+
+ stop)
+   # stop network
+   i=0
+   eval guest=\$guest_$i
+   while [ -n "$guest" ] ; do
+      eval vmid=\$vmid_$i
+      if [ -z "$vmid" ] ; then
+         vmid=$(vim-cmd vmsvc/getallvms | grep $guest | cut -d" " -f1)
+      fi
+
+      vim-cmd vmsvc/power.off $vmid
+
+      i=$((i+1))
+      eval guest=\$guest_$i
+   done
+ ;;
+
+ status)
+   # can return 3 values: 0 up, 1 down, 2 degraded
+   i=0
+   eval guest=\$guest_$i
+   while [ -n "$guest" ] ; do
+      eval vmid=\$vmid_$i
+      if [ -z "$vmid" ] ; then
+         vmid=$(vim-cmd vmsvc/getallvms | grep $guest | cut -d" " -f1)
+      fi
+
+      num_check=$((num_check+1))
+      #fix the grep string!!!
+      if ! vim-cmd vmsvc/power.getstate $vmid | grep -q -F "... on .... " ; then
+         failed_check=$((failed_check+1))
+      fi
+
+      i=$((i+1))
+      eval guest=\$guest_$i
+   done
+ ;;
+
+esac

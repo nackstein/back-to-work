@@ -3,13 +3,17 @@
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.
 
+export LANG=C
+
 cd ${0%/*}
-read lock_path < conf/lock_path
-PATH=:$lock_path:$PATH
-if [ ! -x  $lock_path/get-lock ] ; then
+[ -f conf/lock_path ] && read lock_path < conf/lock_path
+PATH=:${lock_path:-../dex-lock}:$PATH:$PWD/utils
+
+if [ ! -x  ${lock_path:-../dex-lock}/get-lock ] ; then
    echo "back-to-work need dex-lock to run. install it and configure its location."
    exit 1
 fi
+unset lock_path
 
 package=$1
 if [ -z "$package" ] ; then
@@ -38,7 +42,7 @@ fi
 
 init-lock $package $timeout $timeout2
 
-#do not immidiately exit on kill! we must stop the package before quitting!
+#do not immediately exit on kill! we must stop the package before quitting!
 trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; stop="true"' HUP
 trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; stop="true"' INT
 trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; stop="true"' TERM
@@ -48,6 +52,125 @@ quit () {
    release-lock $package
    exit $1
 }
+
+###############################################
+#these function are here to speed up the parser 
+
+_starting () {
+   if ! kill -0 $start_pid 2> /dev/null ; then
+      wait $start_pid
+      if [ $? -eq 0 ] ; then
+         packages/$package status >> log/$package.log 2>&1 & status_pid=$!
+         pkg_state="running"
+      else
+         echo "$(date) start script exited with error."
+         pkg_state="failing"
+      fi
+   else
+      start_timeout=$((start_timeout-pace))
+   fi
+
+   if [ $start_timeout -le 0 ] ; then
+      echo "$(date) timeout waiting for package to start."
+      kill $start_pid
+      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+      pkg_state="failing"
+   fi
+}
+
+_running () {
+   if ! kill -0 $status_pid 2> /dev/null ; then
+      wait $status_pid
+      pkg_status=$?
+
+      #status function returns: 0 up, 1 down, 2 degraded
+      if [ $pkg_status -eq 1 ] ; then
+         #package is down... clean stop it anyway
+         echo "$(date) package status is unexpectedly down!"
+         packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+         pkg_state="failing"
+      elif [ $pkg_status -eq 2 ] ; then
+         #package is degraded
+         healthy_timeout=$((healthy_timeout-pace))
+      else
+         #monitor exited with 0. fine. start a new one :)
+         packages/$package status >> log/$package.log 2>&1 & status_pid=$!
+         healthy_timeout=$timeout
+      fi
+   else
+      #monitor is taking some time... assume degraded
+      healthy_timeout=$((healthy_timeout-pace))
+   fi
+
+   if [ $healthy_timeout -le 0 ] ; then
+      echo "$(date) timeout waiting for package good health."
+      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+      pkg_state="failing"
+   fi
+
+   if [ "$pkg_state" = "running" -a "$stop" = "true" ] ; then
+      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+      pkg_state="halting"
+   fi
+}
+
+_halting () {
+   if ! kill -0 $stop_pid 2> /dev/null ; then
+      wait $stop_pid
+      if [ $? -eq 0 ] ; then
+         [ "$pkg_state" = "failing" ] && pkg_state="failed"
+         [ "$pkg_state" = "halting" ] && pkg_state="halted"
+      else
+         #if there are stop error it's safer to quit
+         echo "$(date) stop script exited with error."
+         pkg_state="halted"
+      fi
+   else
+      stop_timeout=$((stop_timeout-pace))
+   fi
+
+   if [ $stop_timeout -le 0 ] ; then
+      echo "$(date) timeout waiting for package to stop."
+      #pkill -x -f "$shell_cmd packages/$package stop"
+      pkg_state="halted"
+   fi
+}
+
+_halted () {
+   if [ "$pkg_state" = "halted" ] ; then
+      echo "$(date) package $pkg_state. exit."
+      quit 0
+   fi
+   echo "$(date) package $pkg_state. restarting as stand-by."
+   release-lock $package $timeout $timeout2
+   sleep $pace
+   role="stand-by"
+}
+
+_unknown () {
+   if pkill -0 -x -f "$shell_cmd packages/$package start" ; then
+      echo "$(date) start script already running. package state is unknown."
+      quit 1
+   fi
+   if pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
+      echo "$(date) stop script already running. package state is unknown."
+      quit 1
+   fi
+
+   #status function returns: 0 up, 1 down, 2 degraded
+   packages/$package status >> log/$package.log 2>&1
+   pkg_status=$?
+   if [ $pkg_status -eq 1 ] ; then
+      packages/$package start >> log/$package.log 2>&1 & start_pid=$!
+      pkg_state="starting"
+   else
+      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+      echo "$(date) package status is not down."
+      pkg_state="failing"
+   fi 
+}
+
+###############################################
 
 echo "$(date) starting as stand-by node." & sleep_pid=$!
 while true ; do
@@ -73,112 +196,13 @@ while true ; do
       fi
 
       old_state=$pkg_state
-      #handle all cases of the package state machine
+      #handle all cases of the package state machine using functions to speed up the parser
       case $pkg_state in
-       starting)
-         if ! pkill -0 -x -f "$shell_cmd packages/$package start" ; then
-            wait $start_pid
-            if [ $? -eq 0 ] ; then
-               pkg_state="running"
-            else
-               pkg_state="failing"
-            fi
-         else
-            start_timeout=$((start_timeout-pace))
-         fi
-
-         if [ $start_timeout -le 0 ] ; then
-            echo "$(date) timeout waiting for package to start."
-            pkill -x -f "$shell_cmd packages/$package start"
-            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-            pkg_state="failing"
-         fi
-       ;;
-
-       running)
-         if [ "$stop" = "true" ] ; then
-            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-            pkg_state="halting"
-            continue 
-         fi
-
-         #status function returns: 0 up, 1 down, 2 degraded
-         packages/$package status >> log/$package.log 2>&1
-         pkg_status=$?
-
-         if [ $pkg_status -eq 1 ] ; then
-            #package is down... clean stop it anyway
-            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-            pkg_state="failing"
-            continue
-         fi
-
-         if [ $pkg_status -eq 2 ] ; then
-            #package is degraded
-            healthy_timeout=$((healthy_timeout-pace))
-         else
-            healthy_timeout=$timeout
-         fi
-
-         if [ $healthy_timeout -le 0 ] ; then
-            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-            pkg_state="failing"
-            continue
-         fi
-       ;;
-
-       halting|failing)
-         if ! pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
-            wait $stop_pid
-            if [ $? -eq 0 -a "$pkg_state" = "failing" ] ; then
-               [ "$pkg_state" = "failing" ] && pkg_state="failed"
-            else
-               #if there are stop error it's safer to quit
-               pkg_state="halted"
-            fi
-         else
-            stop_timeout=$((stop_timeout-pace))
-         fi
-
-         if [ $stop_timeout -le 0 ] ; then
-            echo "$(date) timeout waiting for package to stop."
-            #pkill -x -f "$shell_cmd packages/$package stop"
-            pkg_state="halted"
-         fi
-       ;;
-
-       halted|failed)
-            if [ "$pkg_state" = "halted" ] ; then
-               echo "$(date) package $pkg_state. exit."
-               quit 0
-            fi
-            echo "$(date) package $pkg_state. restarting as stand-by."
-            release-lock $package $timeout $timeout2
-            sleep $pace
-            role="stand-by"
-       ;;
-
-       unknown)
-         if pkill -0 -x -f "$shell_cmd packages/$package start" ; then
-            echo "$(date) start script already running. package state is unknown."
-            quit 1
-         fi
-         if pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
-            echo "$(date) stop script already running. package state is unknown."
-            quit 1
-         fi
-
-         #status function returns: 0 up, 1 down, 2 degraded
-         packages/$package status >> log/$package.log 2>&1
-         pkg_status=$?
-         if [ "$stop" = "false" -a $pkg_status -eq 1 ] ; then
-            packages/$package start >> log/$package.log 2>&1 & start_pid=$!
-            pkg_state="starting"
-         else
-            packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-            pkg_state="failing"
-         fi 
-       ;;
+       starting)        _starting ;;
+       running)         _running ;;
+       halting|failing) _halting ;;
+       halted|failed)   _halted ;;
+       unknown)         _unknown ;;
       esac # package_state
 
       if [ "$old_state" != "$pkg_state" ] ; then
