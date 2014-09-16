@@ -1,41 +1,33 @@
 #!/bin/dash
 
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
-##Distributed under the terms of a MIT license.
+#Distributed under the terms of a MIT license.
 
-#this script emulate pkill. it's useful for OpenWRT wich lack pkill in default image.
-#warning: this script do not implement all pkill options.
+#wrapper to pkill. useful for ESXi and OpenWRT
 
-if [ "$1" = "-0" ] ; then
-   signal=0
-   shift
-else
-   signal=TERM
-fi
-
-[ "$1" = "-x" -o "$1" = "-f" ] && shift
-[ "$1" = "-f" -o "$1" = "-x" ] && shift
+signal=TERM
+while getopts "0fx" opt; do
+   case "$opt" in
+    0) signal=0 ;;
+    f) : ;;
+    x) anchor1="^"; anchor2="$" ;;
+    ?) exit 1 ;;
+   esac
+done
+eval pattern=\$$OPTIND
 
 case $(uname) in
  VMkernel)
-   psopt="-c"
- ;;
- HP-UX)
-   export UNIX_STD=2003
-   psopt="-e -o pid,args"
+   pgrep -l -f "$anchor1$pattern$anchor2" | { found=1; while read pid args; do kill -$signal $pid; found=0; done; exit $found; }
  ;;
  Linux)
-   psopt="-e -o pid,args"
+   if pkill -V > /dev/null 2>&1 ; then
+      pkill "$@"
+   else
+      pgrep -l -f "$anchor1$pattern$anchor2" | { found=1; while read pid args; do kill -$signal $pid; found=0; done; exit $found; }
+   fi
+ ;;
+ *)
+   pkill "$@"
+ ;;
 esac
- 
-found=1
-#some embedded linux ps do not support -e and -o options.
-{ ps $psopt || ps ; } | grep "$1$" | grep -v utils/pkill | \
-{
-   found=1
-   while read pid b ; do
-      found=0
-      kill -$signal $pid
-   done
-   exit $found
-}

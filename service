@@ -2,17 +2,6 @@
 
 cd ${0%/*}
 
-case $(uname) in
- VMkernel)
-   #on ESXi we need to override default pkill with custom script
-   PATH=$PWD/utils:$PATH
- ;;
-
- *)
-   PATH=$PATH:$PWD/utils
- ;;
-esac
-
 case $1 in
  start)
    if [ -z "$2" ] ; then
@@ -30,8 +19,8 @@ case $1 in
    printf "sending TERM signal and waiting for package to halt."
    shell_cmd=$(head -1 back-to-work)
    shell_cmd=${shell_cmd#\#!}
-   pkill -x -f "$shell_cmd ./back-to-work $2"
-   while pkill -0 -x -f "$shell_cmd ./back-to-work $2" ; do
+   utils/pkill -x -f "$shell_cmd ./back-to-work $2"
+   while utils/pkill -0 -x -f "$shell_cmd ./back-to-work $2" ; do
       sleep 1
       printf .
    done
@@ -57,7 +46,7 @@ case $1 in
    read cluster_nodes < conf/cluster_nodes
    for h in $cluster_nodes ; do
       echo "\\033[1;34mlist of back-to-work processes running on: $h\\033[0;39m"
-      pgrep -l -f "$shell_cmd ./back-to-work" | while read line ; do
+      pgrep -l -f "^$shell_cmd ./back-to-work" | while read line ; do
          #echo $line
          package=${line##* }
          pid=${line%% *}

@@ -7,17 +7,7 @@ export LANG=C
 
 cd ${0%/*}
 [ -f conf/lock_path ] && read lock_path < conf/lock_path
-
-case $(uname) in
- VMkernel)
-   #on ESXi we need to override default pkill with custom script
-   PATH=${lock_path:-../dex-lock}:$PWD/utils:$PATH
- ;;
-
- *)
-   PATH=${lock_path:-../dex-lock}:$PATH:$PWD/utils
- ;;
-esac
+PATH=${lock_path:-../dex-lock}:$PATH
 
 if [ ! -x  ${lock_path:-../dex-lock}/get-lock ] ; then
    echo "back-to-work need dex-lock to run. install it and configure its location."
@@ -141,7 +131,7 @@ _halting () {
 
    if [ $stop_timeout -le 0 ] ; then
       echo "$(date) timeout waiting for package to stop."
-      #pkill -x -f "$shell_cmd packages/$package stop"
+      #utils/pkill -x -f "$shell_cmd packages/$package stop"
       pkg_state="halted"
    fi
 }
@@ -158,11 +148,11 @@ _halted () {
 }
 
 _unknown () {
-   if pkill -0 -x -f "$shell_cmd packages/$package start" ; then
+   if utils/pkill -0 -x -f "$shell_cmd packages/$package start" ; then
       echo "$(date) start script already running. package state is unknown."
       quit 1
    fi
-   if pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
+   if utils/pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
       echo "$(date) stop script already running. package state is unknown."
       quit 1
    fi
