@@ -1,7 +1,17 @@
 #!/bin/dash
 
 cd ${0%/*}
-PATH=$PATH:$PWD/utils
+
+case $(uname) in
+ VMkernel)
+   #on ESXi we need to override default pkill with custom script
+   PATH=$PWD/utils:$PATH
+ ;;
+
+ *)
+   PATH=$PATH:$PWD/utils
+ ;;
+esac
 
 case $1 in
  start)
@@ -29,7 +39,18 @@ case $1 in
  ;;
 
  check-conf)
-   echo to be implemented
+   echo function still incomplete...
+   read cluster_nodes < conf/cluster_nodes
+   echo md5 checksum of lock servers configuration
+   for h in $cluster_nodes ; do
+      ssh $h "cd $PWD ; md5sum ../dex-lock/conf/lock_servers"
+   done
+   echo
+
+   echo md5 checksum of package $2 configuration
+   for h in $cluster_nodes ; do
+      ssh $h "cd $PWD ; md5sum packages/$2"
+   done
  ;;
 
  status)

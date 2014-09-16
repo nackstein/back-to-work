@@ -16,13 +16,26 @@ fi
 [ "$1" = "-x" -o "$1" = "-f" ] && shift
 [ "$1" = "-f" -o "$1" = "-x" ] && shift
 
+case $(uname) in
+ VMkernel)
+   psopt="-c"
+ ;;
+ HP-UX)
+   export UNIX_STD=2003
+   psopt="-e -o pid,args"
+ ;;
+ Linux)
+   psopt="-e -o pid,args"
+esac
+ 
 found=1
-
 #some embedded linux ps do not support -e and -o options.
-{ ps -e -o pid,args || ps ; } | grep "$1$" | grep -v utils/pkill | \
-while read pid b ; do
-   found=0
-   echo kill -$signal $pid $b
-done
-
-exit $found
+{ ps $psopt || ps ; } | grep "$1$" | grep -v utils/pkill | \
+{
+   found=1
+   while read pid b ; do
+      found=0
+      kill -$signal $pid
+   done
+   exit $found
+}

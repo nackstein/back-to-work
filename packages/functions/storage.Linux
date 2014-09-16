@@ -10,39 +10,31 @@ case $1 in
    key=$(eval printf %02x%02x%02x%02x $key)
 
    while [ -n "$disk" ] ; do
-      #check capabilities
-      oldkey=$(sg_persist --no-inquiry --in --read-reservation --device=$disk)
-      ret=$?
-      oldkey=$(echo "$oldkey" | grep "^ *Key=0x")
+      oldkey=$(sg_persist --no-inquiry --in --read-reservation --device=$disk | grep "^ *Key=0x")
       oldkey=${oldkey#*Key=0x}
+      #echo key=$key oldkey=$oldkey
 
-      if [ $ret -eq 0 ] ; then
-         echo PR supported
-         echo key=$key oldkey=$oldkey
-
-         #register. default param-rk=0. check if register-ignore is bettere option here.
-         if sg_persist --no-inquiry --out --register --param-sark=$key --device=$disk ; then
-   
-            #preempt
-            if [ -n "$oldkey" -a "$oldkey" != "$key" ] ; then
-               echo sending preempt command
-               if ! sg_persist -n --out --preempt --prout-type=5 --param-rk=$key --param-sark=$oldkey --device=$disk ; then
-                  echo error in preempt
-               fi
+      #register. default param-rk=0. check if register-ignore is bettere option here.
+      if sg_persist --no-inquiry --out --register --param-sark=$key --device=$disk ; then
+         #preempt
+         if [ -n "$oldkey" -a "$oldkey" != "$key" ] ; then
+            if ! sg_persist -n --out --preempt --prout-type=5 --param-rk=$key --param-sark=$oldkey --device=$disk ; then
+               echo "$(date) error: cannot preempt key $oldkey on device $disk."
+               exit 1
             fi
-
-            if [ "$oldkey" != "$key" ] ; then
-               echo sending reserve command
-               if ! sg_persist --no-inquiry --out --reserve --prout-type=5 --param-rk=$key --device=$disk ; then
-                  echo error in reserve
-               fi
-            else
-               echo already reserved by this host
-            fi
-
-         else
-            echo error in key registration
          fi
+
+         if [ "$oldkey" != "$key" ] ; then
+            if ! sg_persist --no-inquiry --out --reserve --prout-type=5 --param-rk=$key --device=$disk ; then
+               echo "$(date) error: cannot reserve key $key on device $disk."
+               exit 1
+            fi
+         else
+            echo "$(date) warning: key $key already reserve device $disk."
+         fi
+      else
+         echo "$(date) error: cannot register key $key on device $disk."
+         exit 1
       fi
 
       i=$((i+1))
@@ -60,24 +52,12 @@ case $1 in
    key=$(eval printf %02x%02x%02x%02x $key)
 
    while [ -n "$disk" ] ; do
+      #we should have the reservation, sg_persist should not return error.
+      sg_persist --no-inquiry --out --clear --param-rk=$key --device=$disk || ret=1
 
-      if sg_persist --no-inquiry --in --read-reservation --device=$disk >/dev/null ; then
-         sg_persist --no-inquiry --out --clear --param-rk=$key --device=$disk || ret=1
-      fi
-   
       i=$((i+1))
       eval disk=\$disk_$i
    done
- ;;
-
- status)
-   # can return 3 values: 0 up, 1 down, 2 degraded
-   # monitor storage
-
-   #check
-   #sg_persist --no-inquiry --read-reservation --device=$disk | grep -q "^[[:space:]]*Key=0x$key"
-   #sg_persist --no-inquiry --read-keys --device=$disk | grep -q "^[[:space:]]*0x$key"
-      
  ;;
 
 esac

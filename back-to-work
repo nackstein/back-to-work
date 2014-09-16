@@ -7,7 +7,17 @@ export LANG=C
 
 cd ${0%/*}
 [ -f conf/lock_path ] && read lock_path < conf/lock_path
-PATH=:${lock_path:-../dex-lock}:$PATH:$PWD/utils
+
+case $(uname) in
+ VMkernel)
+   #on ESXi we need to override default pkill with custom script
+   PATH=${lock_path:-../dex-lock}:$PWD/utils:$PATH
+ ;;
+
+ *)
+   PATH=${lock_path:-../dex-lock}:$PATH:$PWD/utils
+ ;;
+esac
 
 if [ ! -x  ${lock_path:-../dex-lock}/get-lock ] ; then
    echo "back-to-work need dex-lock to run. install it and configure its location."
@@ -196,7 +206,7 @@ while true ; do
       fi
 
       old_state=$pkg_state
-      #handle all cases of the package state machine using functions to speed up the parser
+      #using functions to speed up the parser (I hope :P)
       case $pkg_state in
        starting)        _starting ;;
        running)         _running ;;
