@@ -1,5 +1,8 @@
 # -*-Shell-script-*-
 
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
 # configuration: ip prefix { network | netdev }
 
 case $1 in
@@ -19,7 +22,7 @@ case $1 in
 
       if [ -n "$netdev" ] ; then
          if arping -q -c 2 -w 3 -D -I $netdev $ip ; then
-            ip addr add $ip/$prefix dev $netdev
+            ip addr add $ip/$prefix dev $netdev || exit 1
             arping -q -U -c 2 -I $netdev $ip
          else
             #ip address in use

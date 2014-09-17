@@ -3,17 +3,18 @@
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.
 
+# configuration: ip netmask netdev
+
 case $1 in
  start)
    # start network
    i=0
    eval ip=\$ip_$i
    while [ -n "$ip" ] ; do
-      eval prefix=\$prefix_$i
       eval netdev=\$netdev_$i
+      eval netmask=\$netmask_$i
 
-      ifconfig $netdev inet $ip/$prefix alias || exit 1
-      #TODO try to use traceroute to send gratuitous arp
+      netsh interface ip add address name="$netdev" addr=$ip mask=$netmask || exit 1
 
       i=$((i+1))
       eval ip=\$ip_$i
@@ -29,8 +30,8 @@ case $1 in
       eval netmask=\$netmask_$i
       eval netdev=\$netdev_$i
 
-      if ifconfig $netdev | grep -q -F " $ip netmask $netmask " ; then
-         ifconfig $netdev inet $ip/$prefix -alias
+      if netsh interface ip show address "$netdev" | grep -q " $ip$" ; then
+         netsh interface ip del address name="$netdev" addr=$ip || ret=1
       fi
 
       i=$((i+1))
@@ -43,15 +44,14 @@ case $1 in
    i=0
    eval ip=\$ip_$i
    while [ -n "$ip" ] ; do
-      num_check=$((num_check+1))
-      failed_check=$((failed_check+1))
-
-      eval prefix=\$prefix_$i
-      eval netmask=\$netmask_$i
       eval netdev=\$netdev_$i
 
-      if ifconfig $netdev | grep -q -F " $ip netmask $netmask " ; then
-         failed_check=$((failed_check-1))
+      num_check=$((num_check+1))
+      #ipconfig seems faster than netsh
+      if ! ipconfig | awk "/adapter $netdev:/ {p=1; print; next}; /adapter/ {p=0}; p==1" | grep -q " $ip$" ; then
+         failed_check=$((failed_check+1))
+      elif ipconfig | awk "/adapter $netdev:/ {p=1; print; next}; /adapter/ {p=0}; p==1" | grep -q "Media disconnected" ; then
+         failed_check=$((failed_check+1))
       fi
 
       i=$((i+1))

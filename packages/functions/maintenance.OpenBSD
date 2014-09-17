@@ -1,14 +1,16 @@
 # -*-Shell-script-*-
 
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
 case $1 in
  start)
    touch /tmp/$(basename $0).maintenance
-   true
  ;;
 
  stop)
    rm /tmp/$(basename $0).maintenance
-   true
+   ret=0
  ;;
 
  status)
