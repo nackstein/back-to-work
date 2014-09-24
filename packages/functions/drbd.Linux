@@ -1,0 +1,107 @@
+#!/bin/dash
+
+case $1 in
+ start)
+   echo "$(date) starting drdb."
+   i=0
+   eval drbd_res=\$drbd_res_$i
+
+   while [ -n "$drbd_res" ] ; do
+      echo "$(date) promoting resource $drbd_res."
+      drbdadm primary $drbd_res || exit 1
+      sleep 1
+
+      j=0
+      eval drbd_vol=\$drbd_vol_${i}_$j
+      eval drbd_dir=\$drbd_dir_${i}_$j
+      
+      echo start mounting volumes of $drbd_res
+      while [ -n "$drbd_vol" ] ; do
+         echo "$(date) mounting volume $drbd_vol."
+         mount -v $drbd_vol $drbd_dir || exit 1
+         j=$((j+1))
+         eval drbd_vol=\$drbd_vol_${i}_$j
+         eval drbd_dir=\$drbd_dir_${i}_$j
+      done
+
+      i=$((i+1))
+      eval drbd_res=\$drbd_res_$i
+   done
+ ;;
+
+ stop)
+   echo "$(date) stopping drdb."
+   i=0
+   eval drbd_res=\$drbd_res_$i
+
+   while [ -n "$drbd_res" ] ; do
+      j=0
+      eval drbd_dir=\$drbd_dir_${i}_$j
+
+      while [ -n "$drbd_dir" ] ; do
+         if mountpoint -q $drbd_dir ; then
+            w=${umount_wait:-10}
+            while fuser -k -m $drbd_dir ; do
+               sleep 1; printf .
+               [ $w -le 0 ] && break
+               w=$((w-1))
+            done
+
+            echo "$(date) umounting volume $drbd_dir."
+            umount $drbd_dir
+         fi
+
+         j=$((j+1))
+         eval drbd_dir=\$drbd_dir_${i}_$j
+      done
+
+      drbd_role=$(drbdadm role $drbd_res)
+      case "$drbd_role" in
+       Primary/Secondary|Primary/Unknown)
+         echo "$(date) demoting resource $drbd_res to secondary."
+         drbdadm secondary $drbd_res || ret=1
+       ;;
+       Secondary/Secondary|Secondary/Unknown)
+         echo "$(date) resource $drbd_res already $drbd_role."
+       ;;
+       *) ret=1 ;; #unhandled
+      esac
+
+      i=$((i+1))
+      eval drbd_res=\$drbd_res_$i
+   done
+ ;;
+
+ status)
+   i=0
+   eval drbd_res=\$drbd_res_$i
+
+   while [ -n "$drbd_res" ] ; do
+      drbd_role=$(drbdadm role $drbd_res)
+      drbd_dstate=$(drbdadm dstate $drbd_res)
+
+      num_check=$((num_check+1))
+      case "$drbd_role" in
+       Primary/Secondary|Primary/Unknown)
+         case "$drbd_dstate" in
+          UpToDate/*) : ;;
+          Diskless/*) exit 3 ;; #local disk has problem. require manual intervention.
+          *) exit 3 ;;          #unhandled. require manual intervention.
+         esac
+       ;;
+
+       Secondary/Secondary|Secondary/Unknown)
+         case "$drbd_dstate" in
+          UpToDate/*) failed_check=$((failed_check+1)) ;;
+          *) exit 3 ;;   #this handle Diskless/*, Inconsistent/* and everything else.
+         esac
+       ;;
+
+       *) exit 3 ;;              #unhandled. require manual intervention.
+      esac
+
+      i=$((i+1))
+      eval drbd_res=\$drbd_res_$i
+   done
+ ;;
+esac

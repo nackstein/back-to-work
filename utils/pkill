@@ -1,4 +1,4 @@
-#!/bin/dash
+#!/bin/sh
 
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.

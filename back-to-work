@@ -1,4 +1,4 @@
-#!/bin/dash
+#!/bin/sh
 
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.
@@ -83,27 +83,34 @@ _running () {
       wait $status_pid
       pkg_status=$?
 
-      #status function returns: 0 up, 1 down, 2 degraded
-      if [ $pkg_status -eq 1 ] ; then
-         #package is down... clean stop it anyway
+      #status function returns: 0 up, 1 down, 2 degraded, 3 critical
+      case "$pkg_status" in
+       0) #monitor exited with 0. fine. start a new one.
+         packages/$package status >> log/$package.log 2>&1 & status_pid=$!
+         healthy_timeout=$timeout
+       ;;
+       1) #package is down... clean stop it anyway.
          echo "$(date) package status is unexpectedly down!"
          packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
          pkg_state="failing"
-      elif [ $pkg_status -eq 2 ] ; then
-         #package is degraded
+       ;;
+       2) #package is degraded... just wait for self healing.
+         echo "$(date) package status degraded..."
          healthy_timeout=$((healthy_timeout-pace))
-      else
-         #monitor exited with 0. fine. start a new one :)
-         packages/$package status >> log/$package.log 2>&1 & status_pid=$!
-         healthy_timeout=$timeout
-      fi
+       ;;
+       *) #a critical error has been detected. stop immediately.
+         echo "$(date) package status is critical! manual intervention required!"
+         packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+         pkg_state="failing"
+       ;;
+      esac
    else
       #monitor is taking some time... assume degraded
       healthy_timeout=$((healthy_timeout-pace))
    fi
 
    if [ $healthy_timeout -le 0 ] ; then
-      echo "$(date) timeout waiting for package good health."
+      echo "$(date) error: timeout waiting for package good health."
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
       pkg_state="failing"
    fi
@@ -160,14 +167,26 @@ _unknown () {
    #status function returns: 0 up, 1 down, 2 degraded
    packages/$package status >> log/$package.log 2>&1
    pkg_status=$?
-   if [ $pkg_status -eq 1 ] ; then
-      packages/$package start >> log/$package.log 2>&1 & start_pid=$!
-      pkg_state="starting"
-   else
+
+   #status function returns: 0 up, 1 down, 2 degraded, 3 critical
+   case "$pkg_status" in
+    0|2)
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
       echo "$(date) package status is not down."
       pkg_state="failing"
-   fi 
+    ;;
+
+    1)
+      packages/$package start >> log/$package.log 2>&1 & start_pid=$!
+      pkg_state="starting"
+    ;;
+
+    *)
+      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+      echo "$(date) package status is critical! manual intervention required!"
+      pkg_state="halting"
+    ;;
+   esac
 }
 
 ###############################################
