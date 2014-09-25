@@ -11,12 +11,12 @@ start_timeout=10
 stop_timeout=10
 
 #ip_0=192.168.68.68; prefix_0=24; netdev_0=eth0
-#ip_0=192.168.68.68; prefix_0=23; network_0=172.22.122.0
 #ip_1=192.168.68.69; prefix_1=24; netdev_1=eth0
-
 #disk_0=/dev/sdb
 
+vip_ip_0=172.24.49.200; vip_prefix_0=26; vip_network_0=172.24.49.192
 drbd_res_0="data"; drbd_vol_0_0="/dev/drbd1"; drbd_dir_0_0="/data"
+nfs_dir_0="/data"; nfs_client_0_0="172.24.49.193"; nfs_opt_0_0="rw,no_root_squash,fsid=500"
 
 # end of configuration section
 
@@ -34,6 +34,8 @@ case $1 in
    #(
    #. functions/storage.$os
    . functions/drbd.$os
+   . functions/vip.$os
+   . functions/nfs.$os
    #. functions/network.$os
    # --- programs start ---
    #)
@@ -49,6 +51,8 @@ case $1 in
    # --- programs stop ---
    #. functions/network.$os
    #. functions/storage.$os
+   . functions/nfs.$os
+   . functions/vip.$os
    . functions/drbd.$os
    #. functions/maintenance.$os
 
@@ -63,6 +67,8 @@ case $1 in
    #. functions/network.$os
    #. functions/storage.$os
    . functions/drbd.$os
+   . functions/vip.$os
+   . functions/nfs.$os
    #. functions/maintenance.$os
 
    #by default if num_check=0 you will exit with 1. package is down.

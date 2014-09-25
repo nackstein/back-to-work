@@ -1,0 +1,92 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration: vip_ip vip_prefix { vip_network | vip_netdev }
+
+case $1 in
+ start)
+   # start network
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netdev=\$vip_netdev_$i
+
+      #if vip_netdev is not specified we choose it from routing table
+      if [ -z "$vip_netdev" ] ; then
+         eval vip_network=\$vip_network_$i
+         vip_netdev=$(ip route show | grep -F $vip_network/$vip_prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
+      fi
+
+      if [ -n "$vip_netdev" ] ; then
+         if arping -q -c 2 -w 3 -D -I $vip_netdev $vip_ip ; then
+            ip addr add $vip_ip/$vip_prefix dev $vip_netdev || exit 1
+            arping -q -U -c 2 -I $vip_netdev $vip_ip
+         else
+            #ip address in use
+            echo "$(date) ip address $vip_ip is in use."
+            exit 1
+         fi
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+ stop)
+   # stop network
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netdev=\$vip_netdev_$i
+
+      #if vip_netdev is not specified we choose it from routing table
+      if [ -z "$vip_netdev" ] ; then
+         eval vip_network=\$vip_network_$i
+         vip_netdev=$(ip route show | grep -F $vip_network/$vip_prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
+      fi
+
+      if [ -n "$vip_netdev" ] ; then
+         if ip addr show dev $vip_netdev | grep -q -F " $vip_ip/$vip_prefix " ; then
+            ip addr del $vip_ip/$vip_prefix dev $vip_netdev || ret=1
+         fi
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+ status)
+   # can return 4 values: 0 up, 1 down, 2 degraded, 3 critical
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netdev=\$vip_netdev_$i
+
+      #if vip_netdev is not specified we choose it from routing table
+      if [ -z "$vip_netdev" ] ; then
+         eval vip_network=\$vip_network_$i
+         vip_netdev=$(ip route show | grep -F $vip_network/$vip_prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
+      fi
+
+      if [ -n "$vip_netdev" ] ; then
+         num_check=$((num_check+1))
+         if ! ip addr show dev $vip_netdev | grep -q -F " $vip_ip/$vip_prefix " ; then
+            failed_check=$((failed_check+1))
+         elif ip link show $vip_netdev | grep -q NO-CARRIER ; then
+            failed_check=$((failed_check+1))
+         fi
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+esac

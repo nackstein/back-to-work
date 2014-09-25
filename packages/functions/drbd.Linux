@@ -1,4 +1,9 @@
-#!/bin/dash
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration: drbd_res drbd_vol drbd_dir
 
 case $1 in
  start)
@@ -15,7 +20,6 @@ case $1 in
       eval drbd_vol=\$drbd_vol_${i}_$j
       eval drbd_dir=\$drbd_dir_${i}_$j
       
-      echo start mounting volumes of $drbd_res
       while [ -n "$drbd_vol" ] ; do
          echo "$(date) mounting volume $drbd_vol."
          mount -v $drbd_vol $drbd_dir || exit 1
@@ -42,7 +46,7 @@ case $1 in
          if mountpoint -q $drbd_dir ; then
             w=${umount_wait:-10}
             while fuser -k -m $drbd_dir ; do
-               sleep 1; printf .
+               sleep 1
                [ $w -le 0 ] && break
                w=$((w-1))
             done

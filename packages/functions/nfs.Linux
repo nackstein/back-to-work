@@ -1,0 +1,54 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration: nfs_dir nfs_client nfs_opt
+
+case $1 in
+ start)
+   echo "$(date) starting nfs."
+   i=0
+   eval nfs_dir=\$nfs_dir_$i
+
+   while [ -n "$nfs_dir" ] ; do
+      j=0
+      eval nfs_client=\$nfs_client_${i}_$j
+      eval nfs_opt=\$nfs_opt_${i}_$j
+      
+      while [ -n "$nfs_client" ] ; do
+         echo "$(date) exporting directory $nfs_dir to $nfs_client."
+         exportfs -o $nfs_opt $nfs_client:$nfs_dir || exit 1
+         j=$((j+1))
+         eval nfs_client=\$nfs_client_${i}_$j
+         eval nfs_opt=\$nfs_opt_${i}_$j
+      done
+
+      i=$((i+1))
+      eval nfs_dir=\$nfs_dir_$i
+   done
+ ;;
+
+ stop)
+   echo "$(date) stopping nfs."
+   i=0
+   eval nfs_dir=\$nfs_dir_$i
+
+   while [ -n "$nfs_dir" ] ; do
+      j=0
+      eval nfs_client=\$nfs_client_${i}_$j
+      eval nfs_opt=\$nfs_opt_${i}_$j
+
+      while [ -n "$nfs_client" ] ; do
+         echo "$(date) unexporting directory $nfs_dir to $nfs_client."
+         exportfs -u $nfs_opt $nfs_client:$nfs_dir || ret 1
+         j=$((j+1))
+         eval nfs_client=\$nfs_client_${i}_$j
+         eval nfs_opt=\$nfs_opt_${i}_$j
+      done
+
+      i=$((i+1))
+      eval nfs_dir=\$nfs_dir_$i
+   done
+ ;;
+esac

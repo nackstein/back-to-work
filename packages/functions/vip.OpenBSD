@@ -1,0 +1,94 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration: vip_ip vip_prefix { vip_network | vip_netdev }
+
+case $1 in
+ start)
+   # start network
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netdev=\$vip_netdev_$i
+
+      #if vip_netdev is not specified we choose it from routing table
+      if [ -z "$vip_netdev" ] ; then
+         eval vip_network=\$vip_network_$i
+         vip_netdev=$(route -n get $ip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+      fi
+
+      if [ -n "$vip_netdev" ] ; then
+         if ! ping -n -q -c 2 -w 1 $vip_ip ; then
+            ifconfig $vip_netdev inet $vip_ip/$vip_prefix alias || exit 1
+            ping -n -q -c 2 -w 1 $ip_network
+         else
+            #ip address in use
+            echo "$(date) ip address $vip_ip is in use."
+            exit 1
+         fi
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+ stop)
+   # stop network
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netdev=\$vip_netdev_$i
+      vip_netmask=$(dc -e "16o2 32^1-2 32 $vip_prefix-^1--[0x]Pp")
+
+      #if vip_netdev is not specified we choose it from routing table
+      if [ -z "$vip_netdev" ] ; then
+         eval vip_network=\$vip_network_$i
+         vip_netdev=$(route -n get $ip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+      fi
+
+      if [ -n "$vip_netdev" ] ; then
+         if ifconfig $vip_netdev | grep -q -i -F " $vip_ip netmask $vip_netmask " ; then
+            ifconfig $vip_netdev inet $vip_ip/$vip_prefix -alias
+         fi
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+ status)
+   # can return 4 values: 0 up, 1 down, 2 degraded, 3 critical
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netdev=\$vip_netdev_$i
+      vip_netmask=$(dc -e "16o2 32^1-2 32 $vip_prefix-^1--[0x]Pp")
+
+      #if vip_netdev is not specified we choose it from routing table
+      if [ -z "$vip_netdev" ] ; then
+         eval vip_network=\$vip_network_$i
+         vip_netdev=$(route -n get $ip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+      fi
+
+      if [ -n "$vip_netdev" ] ; then
+         num_check=$((num_check+1))
+         if ! ifconfig $vip_netdev | grep -q -i -F " $vip_ip netmask $vip_netmask " ; then
+            failed_check=$((failed_check+1))
+         elif ! ifconfig $vip_netdev | grep -q "status: active" ; then
+            failed_check=$((failed_check+1))
+         fi
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+esac
