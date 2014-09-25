@@ -11,6 +11,7 @@ start_timeout=10
 stop_timeout=10
 
 vip_ip_0=172.24.49.201; vip_prefix_0=26; vip_netdev_0=vio0
+vip_ip_1=172.24.49.202; vip_prefix_1=26; vip_network_1=172.24.49.192
 
 # end of configuration section
 

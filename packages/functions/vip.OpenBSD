@@ -17,13 +17,13 @@ case $1 in
       #if vip_netdev is not specified we choose it from routing table
       if [ -z "$vip_netdev" ] ; then
          eval vip_network=\$vip_network_$i
-         vip_netdev=$(route -n get $ip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+         vip_netdev=$(route -n get $vip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
       fi
 
       if [ -n "$vip_netdev" ] ; then
          if ! ping -n -q -c 2 -w 1 $vip_ip ; then
             ifconfig $vip_netdev inet $vip_ip/$vip_prefix alias || exit 1
-            ping -n -q -c 2 -w 1 $ip_network
+            ping -n -q -c 2 -w 1 -r -I $vip_ip $vip_ip
          else
             #ip address in use
             echo "$(date) ip address $vip_ip is in use."
@@ -48,7 +48,7 @@ case $1 in
       #if vip_netdev is not specified we choose it from routing table
       if [ -z "$vip_netdev" ] ; then
          eval vip_network=\$vip_network_$i
-         vip_netdev=$(route -n get $ip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+         vip_netdev=$(route -n get $vip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
       fi
 
       if [ -n "$vip_netdev" ] ; then
@@ -74,7 +74,7 @@ case $1 in
       #if vip_netdev is not specified we choose it from routing table
       if [ -z "$vip_netdev" ] ; then
          eval vip_network=\$vip_network_$i
-         vip_netdev=$(route -n get $ip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+         vip_netdev=$(route -n get $vip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
       fi
 
       if [ -n "$vip_netdev" ] ; then
