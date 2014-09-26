@@ -27,31 +27,37 @@ if [ -z "$package" ] ; then
    exit 0
 fi
 
-pace=$(packages/$package echo pace); pace=${pace:-4}
-timeout=$(packages/$package echo timeout); timeout=${timeout:-30}
-timeout2=$(packages/$package echo stop_timeout); timeout2=${timeout2:-30}
-shell_cmd=$(head -1 packages/$package)
-shell_cmd=${shell_cmd#\#!}
-role="stand-by"
-stop="false"
-
-if ! mkdir temp/monitor_lockdir_$package 2> /dev/null ; then
-   echo "temp/monitor_lockdir_$1 already exist. back-to-work is already running for package $1."
-   exit 1
-fi
-
-init-lock $package $timeout $timeout2
-
-#do not immediately exit on kill! we must stop the package before quitting!
-trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; stop="true"' HUP
-trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; stop="true"' INT
-trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; stop="true"' TERM
+read_conf () {
+   pace=$(packages/$package echo pace); pace=${pace:-4}
+   timeout=$(packages/$package echo timeout); timeout=${timeout:-30}
+   timeout2=$(packages/$package echo stop_timeout); timeout2=${timeout2:-30}
+   start_timeout=$(packages/$package echo start_timeout); start_timeout=${start_timeout:-30}
+   stop_timeout=$timeout2
+   shell_cmd=$(head -1 packages/$package); shell_cmd=${shell_cmd#\#!}
+}
 
 quit () {
    rmdir temp/monitor_lockdir_$package
    release-lock $package
    exit $1
 }
+
+#do not immediately exit on kill! we must stop the package before quitting!
+trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; stop="true"' HUP
+trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; stop="true"' INT
+trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; stop="true"' TERM
+trap 'echo "$(date) received signal SIGUSR1. re-reading package parameters." ; read_conf' USR1
+
+if ! mkdir temp/monitor_lockdir_$package 2> /dev/null ; then
+   echo "temp/monitor_lockdir_$1 already exist. back-to-work is already running for package $1."
+   exit 1
+fi
+
+read_conf
+role="stand-by"
+stop="false"
+
+init-lock $package $timeout $timeout2
 
 ###############################################
 #these function are here to speed up the parser 
@@ -102,7 +108,7 @@ _running () {
        *) #a critical error has been detected. stop immediately.
          echo "$(date) package status is critical! manual intervention required!"
          packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-         pkg_state="failing"
+         pkg_state="halting"
        ;;
       esac
    else
@@ -192,9 +198,12 @@ _unknown () {
 
 ###############################################
 
+#avoid using built-in sleep in backgroud. it create a second back-to-work process
+sleep_cmd=$(which sleep)
+
 echo "$(date) starting as stand-by node." & sleep_pid=$!
 while true ; do
-   wait $sleep_pid ; sleep $pace & sleep_pid=$!
+   wait $sleep_pid ; $sleep_cmd $pace & sleep_pid=$!
    case $role in
     stand-by)
       [ "$stop" = "true" ] && quit 0
