@@ -20,13 +20,6 @@ case $(uname) in
  VMkernel)
    pgrep -l -f "$anchor1$pattern$anchor2" | { found=1; while read pid args; do kill -$signal $pid; found=0; done; exit $found; }
  ;;
- Linux)
-   if pkill -V > /dev/null 2>&1 ; then
-      pkill "$@"
-   else
-      pgrep -l -f "$anchor1$pattern$anchor2" | { found=1; while read pid args; do kill -$signal $pid; found=0; done; exit $found; }
-   fi
- ;;
  *)
    pkill "$@"
  ;;

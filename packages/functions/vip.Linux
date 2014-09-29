@@ -7,6 +7,7 @@
 
 case $1 in
  start)
+   echo "$(date) start vip configuration."
    # start network
    i=0
    eval vip_ip=\$vip_ip_$i
@@ -23,20 +24,24 @@ case $1 in
       if [ -n "$vip_netdev" ] ; then
          if arping -q -c 2 -w 3 -D -I $vip_netdev $vip_ip ; then
             ip addr add $vip_ip/$vip_prefix dev $vip_netdev || exit 1
-            arping -q -U -c 2 -I $vip_netdev $vip_ip
+            arping -q -U -c 2 -I $vip_netdev $vip_ip &
          else
-            #ip address in use
             echo "$(date) ip address $vip_ip is in use."
             exit 1
          fi
+      else
+         echo "$(date) cannot find a device for ip $vip_ip."
+         exit 1
       fi
 
       i=$((i+1))
       eval vip_ip=\$vip_ip_$i
    done
+   wait
  ;;
 
  stop)
+   echo "$(date) stop vip configuration."
    # stop network
    i=0
    eval vip_ip=\$vip_ip_$i
@@ -62,7 +67,7 @@ case $1 in
  ;;
 
  status)
-   # can return 4 values: 0 up, 1 down, 2 degraded, 3 critical
+   # on critical error return 3, in other case modify num_check/failed_check
    i=0
    eval vip_ip=\$vip_ip_$i
    while [ -n "$vip_ip" ] ; do
@@ -75,13 +80,18 @@ case $1 in
          vip_netdev=$(ip route show | grep -F $vip_network/$vip_prefix | sed -E "s/.* dev  *([^ ]+)  *.*/\1/;q")
       fi
 
+      num_check=$((num_check+1))
       if [ -n "$vip_netdev" ] ; then
-         num_check=$((num_check+1))
          if ! ip addr show dev $vip_netdev | grep -q -F " $vip_ip/$vip_prefix " ; then
+            echo "$(date) ip $vip_ip is not configured on $vip_netdev."
             failed_check=$((failed_check+1))
          elif ip link show $vip_netdev | grep -q NO-CARRIER ; then
+            echo "$(date) $vip_netdev link is down."
             failed_check=$((failed_check+1))
          fi
+      else
+         echo "$(date) cannot find a device for ip $vip_ip."
+         exit 3
       fi
 
       i=$((i+1))

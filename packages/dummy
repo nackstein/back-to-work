@@ -5,10 +5,10 @@
 
 # start of configuration section
 
-pace=4
-timeout=20
-start_timeout=10
-stop_timeout=10
+pace=6
+timeout=40
+start_timeout=60
+stop_timeout=60
 
 # end of configuration section
 

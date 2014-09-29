@@ -5,26 +5,32 @@
 
 # configuration: vip_ip vip_prefix { vip_network | vip_netdev }
 
+# work in progress
 case $1 in
  start)
    echo "$(date) start vip configuration."
-   # start network
    i=0
    eval vip_ip=\$vip_ip_$i
    while [ -n "$vip_ip" ] ; do
       eval vip_prefix=\$vip_prefix_$i
       eval vip_netdev=\$vip_netdev_$i
+      vip_netmask=$(echo "16o2 32^1-2 32 $vip_prefix-^1--[0x]Pp" | dc)
 
-      #if vip_netdev is not specified we choose it from routing table
       if [ -z "$vip_netdev" ] ; then
          eval vip_network=\$vip_network_$i
-         vip_netdev=$(route -n get $vip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+         vip_netdev=$(netstat -rn | grep "^$vip_network "  | { read foo foo foo foo dev foo ; echo $dev ; })
+         #WARNING this is not safe if 2 package start with the same vip_network
+         if [ -n "$vip_netdev" ] ; then
+            idx=1
+            while nwmgr -g | grep -q "^$vip_netdev:$idx " ; do idx=$((idx+1)) ; done
+            vip_netdev=$vip_netdev:$idx
+         fi
       fi
 
       if [ -n "$vip_netdev" ] ; then
-         if ! ping -n -q -c 2 -w 1 $vip_ip ; then
-            ifconfig $vip_netdev inet $vip_ip/$vip_prefix alias || exit 1
-            ping -n -q -c 2 -w 1 -r -I $vip_ip $vip_ip &
+         if ! ping $vip_ip -n 2 -m 1 ; then
+            ifconfig $vip_netdev $vip_ip netmask $vip_netmask up || exit 1
+            traceroute -q 1 -w 2 -m 1 -s $vip_ip 0.0.0.0 &
          else
             echo "$(date) ip address $vip_ip is in use."
             exit 1
@@ -42,23 +48,19 @@ case $1 in
 
  stop)
    echo "$(date) stop vip configuration."
-   # stop network
    i=0
    eval vip_ip=\$vip_ip_$i
    while [ -n "$vip_ip" ] ; do
       eval vip_prefix=\$vip_prefix_$i
       eval vip_netdev=\$vip_netdev_$i
-      vip_netmask=$(dc -e "16o2 32^1-2 32 $vip_prefix-^1--[0x]Pp")
 
-      #if vip_netdev is not specified we choose it from routing table
       if [ -z "$vip_netdev" ] ; then
-         eval vip_network=\$vip_network_$i
-         vip_netdev=$(route -n get $vip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+         vip_netdev=$(netstat -inw | grep -F " $vip_ip " | { read dev foo ; echo $dev ; })
       fi
 
       if [ -n "$vip_netdev" ] ; then
-         if ifconfig $vip_netdev | grep -q -i -F " $vip_ip netmask $vip_netmask " ; then
-            ifconfig $vip_netdev inet $vip_ip/$vip_prefix -alias || ret=1
+         if netstat -inw | grep -q "^$vip_netdev .* $vip_ip " ; then
+            ifconfig $vip_netdev 0.0.0.0 || ret=1
          fi
       fi
 
@@ -74,20 +76,21 @@ case $1 in
    while [ -n "$vip_ip" ] ; do
       eval vip_prefix=\$vip_prefix_$i
       eval vip_netdev=\$vip_netdev_$i
-      vip_netmask=$(dc -e "16o2 32^1-2 32 $vip_prefix-^1--[0x]Pp")
 
-      #if vip_netdev is not specified we choose it from routing table
       if [ -z "$vip_netdev" ] ; then
-         eval vip_network=\$vip_network_$i
-         vip_netdev=$(route -n get $vip_network/$vip_prefix | grep interface | { read foo dev ; echo $dev ; })
+         vip_netdev=$(netstat -inw | grep -F " $vip_ip " | { read dev foo ; echo $dev ; })
+         if [ -z "$vip_netdev" ] ; then
+            eval vip_network=\$vip_network_$i
+            vip_netdev=$(netstat -rn | grep "^$vip_network "  | { read foo foo foo foo dev foo ; echo $dev ; })
+         fi
       fi
 
       num_check=$((num_check+1))
       if [ -n "$vip_netdev" ] ; then
-         if ! ifconfig $vip_netdev | grep -q -i -F " $vip_ip netmask $vip_netmask " ; then
+         if ! netstat -inw | grep -q "^$vip_netdev .* $vip_ip " ; then
             echo "$(date) ip $vip_ip is not configured on $vip_netdev."
             failed_check=$((failed_check+1))
-         elif ! ifconfig $vip_netdev | grep -q "status: active" ; then
+         elif ! ifconfig $vip_netdev | grep -q "^$vip_netdev:.*<UP," ; then
             echo "$(date) $vip_netdev link is down."
             failed_check=$((failed_check+1))
          fi
@@ -100,5 +103,4 @@ case $1 in
       eval vip_ip=\$vip_ip_$i
    done
  ;;
-
 esac

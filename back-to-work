@@ -56,6 +56,9 @@ fi
 read_conf
 role="stand-by"
 stop="false"
+#avoid using built-in sleep in backgroud. 
+#it create a second back-to-work process
+sleep_cmd=$(which sleep)
 
 init-lock $package $timeout $timeout2
 
@@ -198,8 +201,6 @@ _unknown () {
 
 ###############################################
 
-#avoid using built-in sleep in backgroud. it create a second back-to-work process
-sleep_cmd=$(which sleep)
 
 echo "$(date) starting as stand-by node." & sleep_pid=$!
 while true ; do
