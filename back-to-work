@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/mksh
 
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.
@@ -97,15 +97,19 @@ _running () {
       case "$pkg_status" in
        0) #monitor exited with 0. fine. start a new one.
          packages/$package status >> log/$package.log 2>&1 & status_pid=$!
-         healthy_timeout=$timeout
+         if [ healthy_timeout -ne $timeout ] ; then
+            echo "$(date) package status is healthy again."
+            healthy_timeout=$timeout
+         fi
        ;;
        1) #package is down... clean stop it anyway.
          echo "$(date) package status is unexpectedly down!"
          packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
          pkg_state="failing"
        ;;
-       2) #package is degraded... just wait for self healing.
+       2) #package is degraded... monitor and wait for self healing.
          echo "$(date) package status degraded..."
+         packages/$package status >> log/$package.log 2>&1 & status_pid=$!
          healthy_timeout=$((healthy_timeout-pace))
        ;;
        *) #a critical error has been detected. stop immediately.

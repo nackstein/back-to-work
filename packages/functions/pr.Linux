@@ -1,0 +1,79 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+case $1 in
+ start)
+   echo "$(date) start scsi persistent reservation."
+   i=0
+   key=$(printf %02x%02x%02x%02x $(getent ahostsv4 $(hostname) | { read ip foo ; echo $ip | tr . " " ; } ))
+
+   eval pr_disk=\$pr_disk_$i
+   while [ -n "$pr_disk" ] ; do
+      oldkey=$(sg_persist -n --read-reservation --device=$pr_disk | grep "^ *Key=0x")
+      oldkey=${oldkey#*Key=0x}
+
+      #register. default param-rk=0. check if register-ignore is bettere option here.
+      if sg_persist -n --out --register --param-sark=$key --device=$pr_disk ; then
+         #preempt
+         if [ -n "$oldkey" -a "$oldkey" != "$key" ] ; then
+            if ! sg_persist -n --out --preempt --prout-type=5 --param-rk=$key --param-sark=$oldkey --device=$pr_disk ; then
+               echo "$(date) error: cannot preempt key $oldkey on device $disk."
+               exit 1
+            fi
+         fi
+
+         if [ "$oldkey" != "$key" ] ; then
+            if ! sg_persist -n --out --reserve --prout-type=5 --param-rk=$key --device=$pr_disk ; then
+               echo "$(date) error: cannot reserve key $key on device $disk."
+               exit 1
+            fi
+         else
+            echo "$(date) warning: key $key already holds device $disk reservation."
+         fi
+      else
+         echo "$(date) error: cannot register key $key on device $disk."
+         exit 1
+      fi
+
+      i=$((i+1))
+      eval pr_disk=\$pr_disk_$i
+   done
+ ;;
+
+ stop)
+   echo "$(date) stop scsi persistent reservation."
+   i=0
+   key=$(printf %02x%02x%02x%02x $(getent ahostsv4 $(hostname) | { read ip foo ; echo $ip | tr . " " ; } ))
+
+   eval pr_disk=\$pr_disk_$i
+   while [ -n "$pr_disk" ] ; do
+      sg_persist --no-inquiry --out --clear --param-rk=$key --device=$pr_disk
+      disk_key=$(sg_persist -n --read-reservation --device=$pr_disk | grep "^ *Key=0x")
+      disk_key=${reg_key#*Key=0x}
+
+      [ "$disk_key" = "$key" ] && ret=1
+
+      i=$((i+1))
+      eval pr_disk=\$pr_disk_$i
+   done
+ ;;
+
+ status)
+   i=0
+   key=$(printf %02x%02x%02x%02x $(getent ahostsv4 $(hostname) | { read ip foo ; echo $ip | tr . " " ; } ))
+
+   eval pr_disk=\$pr_disk_$i
+   while [ -n "$pr_disk" ] ; do
+      num_check=$((num_check+1))
+      disk_key=$(sg_persist -n --read-reservation --device=$pr_disk | grep "^ *Key=0x")
+      disk_key=${disk_key#*Key=0x}
+
+      [ "$disk_key" != "$key" ] && failed_check=$((failed_check+1))
+
+      i=$((i+1))
+      eval pr_disk=\$pr_disk_$i
+   done
+ ;;
+esac
