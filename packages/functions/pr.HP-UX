@@ -3,11 +3,14 @@
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.
 
+#not tested yet!
+#please install SCSI-PR-Utilites_B.01.31.01_HP-UX_B.11.31_IA.depot or newer!
+
 case $1 in
  start)
    echo "$(date) start scsi persistent reservation."
    i=0
-   key=$(printf %02x%02x%02x%02x $(getent ahostsv4 $(hostname) | { read ip foo ; echo $ip | tr . " " ; } ))
+   key=$(../utils/gethexip $(hostname))
 
    eval pr_disk=\$pr_disk_$i
    while [ -n "$pr_disk" ] ; do
@@ -47,7 +50,7 @@ case $1 in
  stop)
    echo "$(date) stop scsi persistent reservation."
    i=0
-   key=$(printf %02x%02x%02x%02x $(getent ahostsv4 $(hostname) | { read ip foo ; echo $ip | tr . " " ; } ))
+   key=$(../utils/gethexip $(hostname))
 
    eval pr_disk=\$pr_disk_$i
    while [ -n "$pr_disk" ] ; do
@@ -64,7 +67,7 @@ case $1 in
 
  status)
    i=0
-   key=$(printf %02x%02x%02x%02x $(getent ahostsv4 $(hostname) | { read ip foo ; echo $ip | tr . " " ; } ))
+   key=$(../utils/gethexip $(hostname))
 
    eval pr_disk=\$pr_disk_$i
    while [ -n "$pr_disk" ] ; do

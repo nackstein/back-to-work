@@ -1,0 +1,69 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration: fs_dev fs_dir [ fs_opt ] [ fs_umount_wait ] ; umount_wait is global, do not use index
+
+case $1 in
+ start)
+   echo "$(date) start fs: mount clustered filesystems."
+   i=0
+
+   eval fs_dev=\$fs_dev_$i
+   while [ -n "$fs_dev" ] ; do
+      eval fs_dir=\$fs_dir_$i
+      eval fs_opt=\$fs_opt_$i
+
+      echo "$(date) fs checking dev $fs_dev."
+      fsck -T -y $fs_dev; [ $? -gt 1 ] && exit 1
+      echo "$(date) mounting dev $fs_dev on dir $fs_dir."
+      mount -o ${fs_opt:-defaults} $fs_dev $fs_dir || exit 1
+
+      i=$((i+1))
+      eval fs_dev=\$fs_dev_$i
+   done
+ ;;
+
+ stop)
+   echo "$(date) stop fs: umount clustered filesystems."
+   i=0
+
+   eval fs_dev=\$fs_dev_$i
+   while [ -n "$fs_dev" ] ; do
+      eval fs_dir=\$fs_dir_$i
+      if mountpoint -q $fs_dir ; then
+         w=${fs_umount_wait:-10}
+         while fuser -k -m $fs_dir ; do
+            sleep 1
+            [ $w -le 0 ] && break
+            w=$((w-1))
+         done
+
+         echo "$(date) umounting directory $fs_dir."
+         umount $fs_dir || ret=1
+      fi
+
+      #in case by some mistake fs_dev is mounted somewhere else...
+      grep "^$fs_dev " /proc/mounts | { fail=0; while read dev foo; do umount $dev || fail=1; done; exit $fail; }
+      [ $? -eq 1 ] && ret=1
+
+      i=$((i+1))
+      eval fs_dev=\$fs_dev_$i
+   done
+ ;;
+
+ status)
+   i=0
+
+   eval fs_dev=\$fs_dev_$i
+   while [ -n "$fs_dev" ] ; do
+      eval fs_dir=\$fs_dir_$i
+      num_check=$((num_check+1))
+
+      grep -q "^$fs_dev $fs_dir " /proc/mounts || failed_check=$((failed_check+1))
+      i=$((i+1))
+      eval fs_dev=\$fs_dev_$i
+   done
+ ;;
+esac

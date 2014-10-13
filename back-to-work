@@ -57,7 +57,7 @@ read_conf
 role="stand-by"
 stop="false"
 #avoid using built-in sleep in backgroud. 
-#it create a second back-to-work process
+#it create a second back-to-work process.
 sleep_cmd=$(which sleep)
 
 init-lock $package $timeout $timeout2

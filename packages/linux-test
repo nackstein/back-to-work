@@ -14,7 +14,8 @@ vip_ip_0=172.24.49.200; vip_prefix_0=26; vip_network_0=172.24.49.192
 drbd_res_0="data"; drbd_vol_0_0="/dev/drbd1"; drbd_dir_0_0="/data"
 nfs_dir_0="/data"; nfs_client_0_0="172.24.49.193"; nfs_opt_0_0="rw,no_root_squash,fsid=500"
 
-pr_disk_0=/dev/sda
+pr_disk_0="/dev/sda"
+fs_dev_0="/dev/mapper/mpatha1"; fs_dir_0="/data";
 
 # end of configuration section
 
@@ -27,11 +28,13 @@ case $1 in
  ;;
 
  start)
+   echo "$(date) ======== $0 start ========"
    #each module can exit with 1 on error and stop the start procedure
    #for maintenance you can wrap all with () and add maintenance module
    #(
    #. functions/drbd.$os
    . functions/pr.$os
+   . functions/fs.$os
    . functions/vip.$os
    #. functions/nfs.$os
    #. functions/network.$os
@@ -44,11 +47,13 @@ case $1 in
  ;;
 
  stop)
+   echo "$(date) ======== $0 stop ========"
    ret=0
    # each module should try to not exit and let other modules execute
    # --- programs stop ---
    #. functions/nfs.$os
    . functions/vip.$os
+   . functions/fs.$os
    . functions/pr.$os
    #. functions/drbd.$os
    #. functions/maintenance.$os
@@ -63,6 +68,7 @@ case $1 in
 
    #. functions/network.$os
    . functions/pr.$os
+   . functions/fs.$os
    #. functions/drbd.$os
    . functions/vip.$os
    #. functions/nfs.$os

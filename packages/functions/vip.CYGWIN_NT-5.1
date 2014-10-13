@@ -1,0 +1,62 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration: ip netmask netdev
+
+case $1 in
+ start)
+   # start network
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_netdev=\$vip_netdev_$i
+      eval vip_netmask=\$vip_netmask_$i
+
+      netsh interface ip add address name="$vip_netdev" addr=$vip_ip mask=$vip_netmask || exit 1
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+ stop)
+   # stop network
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_prefix=\$vip_prefix_$i
+      eval vip_netmask=\$vip_netmask_$i
+      eval vip_netdev=\$vip_netdev_$i
+
+      if netsh interface ip show address "$vip_netdev" | grep -q " $vip_ip$" ; then
+         netsh interface ip del address name="$vip_netdev" addr=$vip_ip || ret=1
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+ status)
+   # can return 3 values: 0 up, 1 down, 2 degraded
+   i=0
+   eval vip_ip=\$vip_ip_$i
+   while [ -n "$vip_ip" ] ; do
+      eval vip_netdev=\$vip_netdev_$i
+
+      num_check=$((num_check+1))
+      #ipconfig seems faster than netsh
+      if ! ipconfig | awk "/adapter $vip_netdev:/ {p=1; print; next}; /adapter/ {p=0}; p==1" | grep -q " $vip_ip$" ; then
+         failed_check=$((failed_check+1))
+      elif ipconfig | awk "/adapter $vip_netdev:/ {p=1; print; next}; /adapter/ {p=0}; p==1" | grep -q "Media disconnected" ; then
+         failed_check=$((failed_check+1))
+      fi
+
+      i=$((i+1))
+      eval vip_ip=\$vip_ip_$i
+   done
+ ;;
+
+esac

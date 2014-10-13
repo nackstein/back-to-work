@@ -13,7 +13,7 @@ start_timeout=10
 stop_timeout=10
 
 #ip_0=192.168.68.68; prefix_0=24; netdev_0=eth0
-ip_0=10.0.2.101; netmask_0=255.255.255.0; netdev_0=eth0
+vip_ip_0=10.0.2.101; vip_netmask_0=255.255.255.0; vip_netdev_0=eth0
 
 # end of configuration section
 

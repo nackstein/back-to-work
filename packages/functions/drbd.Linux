@@ -3,7 +3,7 @@
 #Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
 #Distributed under the terms of a MIT license.
 
-# configuration: drbd_res drbd_vol drbd_dir
+# configuration: drbd_res drbd_vol drbd_dir [ drbd_umount_wait ] ; drbd_umount_wait is global, do not use index
 
 case $1 in
  start)
@@ -44,14 +44,14 @@ case $1 in
 
       while [ -n "$drbd_dir" ] ; do
          if mountpoint -q $drbd_dir ; then
-            w=${umount_wait:-10}
+            w=${drbd_umount_wait:-10}
             while fuser -k -m $drbd_dir ; do
                sleep 1
                [ $w -le 0 ] && break
                w=$((w-1))
             done
 
-            echo "$(date) umounting volume $drbd_dir."
+            echo "$(date) umounting directory $drbd_dir."
             umount $drbd_dir
          fi
 

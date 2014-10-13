@@ -8,7 +8,6 @@
 case $1 in
  start)
    echo "$(date) start vip configuration."
-   # start network
    i=0
    eval vip_ip=\$vip_ip_$i
    while [ -n "$vip_ip" ] ; do
@@ -42,7 +41,6 @@ case $1 in
 
  stop)
    echo "$(date) stop vip configuration."
-   # stop network
    i=0
    eval vip_ip=\$vip_ip_$i
    while [ -n "$vip_ip" ] ; do
