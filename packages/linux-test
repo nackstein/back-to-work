@@ -32,31 +32,31 @@ case $1 in
    #each module can exit with 1 on error and stop the start procedure
    #for maintenance you can wrap all with () and add maintenance module
    #(
-   #. functions/drbd.$os
-   . functions/pr.$os
-   . functions/fs.$os
-   . functions/vip.$os
-   #. functions/nfs.$os
-   #. functions/network.$os
+   #. modules/drbd.$os
+   . modules/pr.$os
+   . modules/fs.$os
+   . modules/vip.$os
+   #. modules/nfs.$os
+   #. modules/network.$os
    # --- programs start ---
    #)
-   #. functions/maintenance.$os
+   #. modules/maintenance.$os
 
    #if this point is reached then everything was ok. return 0
    exit 0
  ;;
 
  stop)
-   echo "$(date) ======== $0 stop ========"
+   echo "$(date) ======== $0 stop ========="
    ret=0
    # each module should try to not exit and let other modules execute
    # --- programs stop ---
-   #. functions/nfs.$os
-   . functions/vip.$os
-   . functions/fs.$os
-   . functions/pr.$os
-   #. functions/drbd.$os
-   #. functions/maintenance.$os
+   #. modules/nfs.$os
+   . modules/vip.$os
+   . modules/fs.$os
+   . modules/pr.$os
+   #. modules/drbd.$os
+   #. modules/maintenance.$os
 
    #modules can set ret to 1 to signal an error
    exit $ret
@@ -66,13 +66,13 @@ case $1 in
    num_check=0
    failed_check=0
 
-   #. functions/network.$os
-   . functions/pr.$os
-   . functions/fs.$os
-   #. functions/drbd.$os
-   . functions/vip.$os
-   #. functions/nfs.$os
-   #. functions/maintenance.$os
+   #. modules/network.$os
+   . modules/pr.$os
+   . modules/fs.$os
+   #. modules/drbd.$os
+   . modules/vip.$os
+   #. modules/nfs.$os
+   #. modules/maintenance.$os
 
    #by default if num_check=0 you will exit with 1. package is down.
    [ "$failed_check" -eq "$num_check" ] && exit 1

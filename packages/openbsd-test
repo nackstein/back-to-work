@@ -27,11 +27,11 @@ case $1 in
    #each module can exit with 1 on error and stop the start procedure
    #for maintenance you can wrap all with () and add maintenance module
    #(
-   #. functions/storage.$os
-   . functions/vip.$os
+   #. modules/storage.$os
+   . modules/vip.$os
    # --- programs start ---
    #)
-   #. functions/maintenance.$os
+   #. modules/maintenance.$os
 
    #if this point is reached then everything was ok. return 0
    exit 0
@@ -41,10 +41,10 @@ case $1 in
    ret=0
    # each module should try to not exit and let other modules execute
    # --- programs stop ---
-   #. functions/network.$os
-   #. functions/storage.$os
-   . functions/vip.$os
-   #. functions/maintenance.$os
+   #. modules/network.$os
+   #. modules/storage.$os
+   . modules/vip.$os
+   #. modules/maintenance.$os
 
    #modules can set ret to 1 to signal an error
    exit $ret
@@ -54,10 +54,10 @@ case $1 in
    num_check=0
    failed_check=0
 
-   #. functions/network.$os
-   #. functions/storage.$os
-   . functions/vip.$os
-   #. functions/maintenance.$os
+   #. modules/network.$os
+   #. modules/storage.$os
+   . modules/vip.$os
+   #. modules/maintenance.$os
 
    #by default if num_check=0 you will exit with 1. package is down.
    [ "$failed_check" -eq "$num_check" ] && exit 1

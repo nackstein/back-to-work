@@ -21,20 +21,20 @@ case $1 in
  ;;
 
  start)
-   . functions/maintenance.$os
+   . modules/maintenance.$os
    exit 0
  ;;
 
  stop)
    ret=0
-   . functions/maintenance.$os
+   . modules/maintenance.$os
    exit $ret
  ;;
 
  status)
    num_check=0
    failed_check=0
-   . functions/maintenance.$os
+   . modules/maintenance.$os
    [ "$failed_check" -eq "$num_check" ] && exit 1
    [ "$failed_check" -eq "0" ] && exit 0
    exit 2

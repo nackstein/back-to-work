@@ -13,7 +13,7 @@ start_timeout=10
 stop_timeout=10
 
 #ip_0=192.168.68.68; prefix_0=24; netdev_0=eth0
-vip_ip_0=10.0.2.101; vip_netmask_0=255.255.255.0; vip_netdev_0=eth0
+vip_ip_0=172.24.49.203; vip_netmask_0=255.255.255.192; vip_netdev_0=eth0
 
 # end of configuration section
 
@@ -26,26 +26,26 @@ case $1 in
  ;;
 
  start)
+   echo "$(date) ======== $0 start ========"
    #each module can exit with 1 on error and stop the start procedure
    #for maintenance you can wrap all with () and add maintenance module
    #(
-   #. functions/storage.$os
-   . functions/network.$os
+   . modules/vip.$os
    # --- programs start ---
    #)
-   #. functions/maintenance.$os
+   #. modules/maintenance.$os
 
    #if this point is reached then everything was ok. return 0
    exit 0
  ;;
 
  stop)
+   echo "$(date) ======== $0 stop ========="
    ret=0
    # each module should try to not exit and let other modules execute
    # --- programs stop ---
-   . functions/network.$os
-   #. functions/storage.$os
-   #. functions/maintenance.$os
+   . modules/vip.$os
+   #. modules/maintenance.$os
 
    #modules can set ret to 1 to signal an error
    exit $ret
@@ -55,9 +55,8 @@ case $1 in
    num_check=0
    failed_check=0
 
-   . functions/network.$os
-   #. functions/storage.$os
-   #. functions/maintenance.$os
+   . modules/vip.$os
+   #. modules/maintenance.$os
 
    #by default if num_check=0 you will exit with 1. package is down.
    [ "$failed_check" -eq "$num_check" ] && exit 1

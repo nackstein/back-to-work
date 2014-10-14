@@ -97,7 +97,7 @@ _running () {
       case "$pkg_status" in
        0) #monitor exited with 0. fine. start a new one.
          packages/$package status >> log/$package.log 2>&1 & status_pid=$!
-         if [ healthy_timeout -ne $timeout ] ; then
+         if [ $healthy_timeout -ne $timeout ] ; then
             echo "$(date) package status is healthy again."
             healthy_timeout=$timeout
          fi
