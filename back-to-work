@@ -9,7 +9,7 @@ cd ${0%/*}
 [ -f conf/lock_path ] && read lock_path < conf/lock_path
 export PATH=${lock_path:-../dex-lock}:$PATH
 
-if [ ! -x  ${lock_path:-../dex-lock}/get-lock ] ; then
+if [ ! -x  ${lock_path:-../dex-lock}/dex-lock ] ; then
    echo "back-to-work need dex-lock to run. install it and configure its location."
    exit 1
 fi
@@ -38,7 +38,7 @@ read_conf () {
 
 quit () {
    rmdir temp/monitor_lockdir_$package
-   release-lock $package
+   dex-release $package
    exit $1
 }
 
@@ -60,7 +60,7 @@ stop="false"
 #it create a second back-to-work process.
 sleep_cmd=$(which sleep)
 
-init-lock $package $timeout $timeout2
+dex-init $package $timeout $timeout2
 
 ###############################################
 #these function are here to speed up the parser 
@@ -163,7 +163,7 @@ _halted () {
       quit 0
    fi
    echo "$(date) package $pkg_state. restarting as stand-by."
-   release-lock $package $timeout $timeout2
+   dex-release $package $timeout $timeout2
    sleep $pace
    role="stand-by"
 }
@@ -211,7 +211,7 @@ while true ; do
    case $role in
     stand-by)
       [ "$stop" = "true" ] && quit 0
-      if get-lock $package $timeout $timeout2 $pace ; then
+      if dex-lock $package $timeout $timeout2 $pace ; then
          echo "$(date) got lock. switch to active node."
          healthy_timeout=$timeout
          start_timeout=$(packages/$package echo start_timeout)
@@ -223,7 +223,7 @@ while true ; do
     ;;
 
     active)
-      if ! get-lock $package $timeout $timeout2 $pace ; then
+      if ! dex-lock $package $timeout $timeout2 $pace ; then
          echo "$(date) lock lost. shutting down."
          stop="true"
       fi

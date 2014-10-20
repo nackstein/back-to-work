@@ -8,7 +8,7 @@
 case $1 in
  start)
    echo "$(date) start ilo4 fencing."
-   prev_node=$(show-previous ${0##*/})
+   prev_node=$(dex-previous ${0##*/})
    if [ "$prev_node" -ne "-invalid-" ] ; then
       eval ilo4=\$ilo4_$prev_node
       if [ -n "$ilo4" ] ; then
