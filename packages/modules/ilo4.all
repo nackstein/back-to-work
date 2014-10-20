@@ -1,0 +1,25 @@
+# -*-Shell-script-*-
+
+#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
+#Distributed under the terms of a MIT license.
+
+# configuration ilo4_$prev_node ; one for each node where the package can run
+
+case $1 in
+ start)
+   echo "$(date) start ilo4 fencing."
+   prev_node=$(show-previous ${0##*/})
+   if [ "$prev_node" -ne "-invalid-" ] ; then
+      eval ilo4=\$ilo4_$prev_node
+      if [ -n "$ilo4" ] ; then
+         if ! ssh -o ConnectTimeout=10 power_admin@$ilo4 power reset | grep -q "Server resetting ......." ; then
+            echo $(date) error: cannot power reset server $prev_node.
+            exit 1
+         fi
+      else
+         echo $(date) error: ilo4 for node $prev_node is not configured.
+         exit 1
+      fi
+   fi
+ ;;
+esac
