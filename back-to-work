@@ -18,12 +18,6 @@ unset lock_path
 package=$1
 if [ -z "$package" ] ; then
    echo "Usage: ${0##*/} { package-name}"
-   echo "  This is the cluster package monitor. It can run on multiple node and only"
-   echo "  one instance switch from stand-by to active state to start the package"
-   echo "  services. The active one will poll and monitor the health of the package"
-   echo "  and in case of failure will shutdown it letting another monitor to try"
-   echo "  to start it again on another node."
-   echo "  Usually it's started with the \"service start <packag-name>\" command."
    exit 0
 fi
 
@@ -37,7 +31,8 @@ read_conf () {
 }
 
 quit () {
-   rmdir temp/monitor_lockdir_$package
+   rm -f temp/lockdir_$package/role temp/lockdir_$package/pkg_state
+   rmdir temp/lockdir_$package
    dex-release $package
    exit $1
 }
@@ -48,16 +43,19 @@ trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; stop="tru
 trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; stop="true"' TERM
 trap 'echo "$(date) received signal SIGUSR1. re-reading package parameters." ; read_conf' USR1
 
-if ! mkdir temp/monitor_lockdir_$package 2> /dev/null ; then
-   echo "temp/monitor_lockdir_$1 already exist. back-to-work is already running for package $1."
+if ! mkdir temp/lockdir_$package 2> /dev/null ; then
+   echo "temp/lockdir_$1 already exist. back-to-work is already running for package $1."
    exit 1
 fi
 
 read_conf
 role="stand-by"
 stop="false"
-#avoid using built-in sleep in backgroud. 
-#it create a second back-to-work process.
+fail="false"
+echo $role > temp/lockdir_$package/role
+echo ""    > temp/lockdir_$package/pkg_state
+#avoid using built-in sleep (see mksh) in backgroud. 
+#it creates a second back-to-work process. ugly.
 sleep_cmd=$(which sleep)
 
 dex-init $package $timeout $timeout2
@@ -80,9 +78,9 @@ _starting () {
       start_timeout=$((start_timeout-pace))
    fi
 
-   if [ $start_timeout -le 0 ] ; then
+   if [ $start_timeout -le $pace ] ; then
       echo "$(date) timeout waiting for package to start."
-      kill $start_pid
+      kill $start_pid 2> /dev/null ; sleep 1
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
       pkg_state="failing"
    fi
@@ -90,11 +88,9 @@ _starting () {
 
 _running () {
    if ! kill -0 $status_pid 2> /dev/null ; then
-      wait $status_pid
-      pkg_status=$?
-
       #status function returns: 0 up, 1 down, 2 degraded, 3 critical
-      case "$pkg_status" in
+      wait $status_pid
+      case $? in
        0) #monitor exited with 0. fine. start a new one.
          packages/$package status >> log/$package.log 2>&1 & status_pid=$!
          if [ $healthy_timeout -ne $timeout ] ; then
@@ -123,15 +119,12 @@ _running () {
       healthy_timeout=$((healthy_timeout-pace))
    fi
 
-   if [ $healthy_timeout -le 0 ] ; then
+   echo "... healthy_timeout $healthy_timeout ..."
+
+   if [ $healthy_timeout -le $pace ] ; then
       echo "$(date) error: timeout waiting for package good health."
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
       pkg_state="failing"
-   fi
-
-   if [ "$pkg_state" = "running" -a "$stop" = "true" ] ; then
-      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-      pkg_state="halting"
    fi
 }
 
@@ -150,7 +143,7 @@ _halting () {
       stop_timeout=$((stop_timeout-pace))
    fi
 
-   if [ $stop_timeout -le 0 ] ; then
+   if [ $stop_timeout -le $pace ] ; then
       echo "$(date) timeout waiting for package to stop."
       kill $stop_pid
       pkg_state="halted"
@@ -166,41 +159,79 @@ _halted () {
    dex-release $package $timeout $timeout2
    sleep $pace
    role="stand-by"
+   fail="false"
+   echo $role > temp/lockdir_$package/role
+   echo ""    > temp/lockdir_$package/pkg_state
 }
 
 _unknown () {
+   if ! kill -0 $status_pid 2> /dev/null ; then
+      #status function returns: 0 up, 1 down, 2 degraded, 3 critical
+      wait $status_pid
+      case $? in
+       0|2) #package is not down... this should never happen :(.
+         echo "$(date) package status is not down."
+         packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+         pkg_state="failing"
+       ;;
+
+       1) #package is down... nice we can start it.
+         packages/$package start >> log/$package.log 2>&1 & start_pid=$!
+         pkg_state="starting"
+         healthy_timeout=$timeout
+       ;;
+
+       *) #a critical error has been detected. stop immediately.
+         echo "$(date) package status is critical! manual intervention required!"
+         packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+         pkg_state="halting"
+       ;;
+      esac
+   else
+      #monitor is taking some time... let's be patient and wait...
+      healthy_timeout=$((healthy_timeout-pace))
+   fi
+
+   if [ $healthy_timeout -le $pace ] ; then
+      echo "$(date) error: timeout waiting for package status. "
+      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
+      pkg_state="failing"
+   fi
+}
+
+_activate () {
+   echo "$(date) got lock. switch to active node."
+   healthy_timeout=$timeout
+   start_timeout=$(packages/$package echo start_timeout)
+   start_timeout=${start_timeout:-30}
+   stop_timeout=$timeout2
+   pkg_state="unknown"
+   role="active"
+   echo $role      > temp/lockdir_$package/role
+   echo $pkg_state > temp/lockdir_$package/pkg_state
+
    if utils/pkill -0 -x -f "$shell_cmd packages/$package start" ; then
-      echo "$(date) start script already running. package state is unknown."
+      echo "$(date) error: start script already running."
       quit 1
    fi
    if utils/pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
-      echo "$(date) stop script already running. package state is unknown."
+      echo "$(date) error: stop script already running."
       quit 1
    fi
 
-   #status function returns: 0 up, 1 down, 2 degraded
-   packages/$package status >> log/$package.log 2>&1
-   pkg_status=$?
+   echo "$(date) package state initialized to $pkg_state."
+   packages/$package status >> log/$package.log 2>&1 & status_pid=$!
+}
 
-   #status function returns: 0 up, 1 down, 2 degraded, 3 critical
-   case "$pkg_status" in
-    0|2)
-      echo "$(date) package status is not down."
+must_stop_fail () {
+   if [ "$stop" = "true" -o "$fail" = "true" ] ; then
+      [ -n "$start_pid" ] && kill $start_pid 2> /dev/null && sleep 1
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-      pkg_state="failing"
-    ;;
-
-    1)
-      packages/$package start >> log/$package.log 2>&1 & start_pid=$!
-      pkg_state="starting"
-    ;;
-
-    *)
-      echo "$(date) package status is critical! manual intervention required!"
-      packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-      pkg_state="halting"
-    ;;
-   esac
+      [ "$fail" = "true" ] && pkg_state="failing"
+      [ "$stop" = "true" ] && pkg_state="halting"
+      return 0
+   fi
+   return 1
 }
 
 ###############################################
@@ -211,35 +242,29 @@ while true ; do
    case $role in
     stand-by)
       [ "$stop" = "true" ] && quit 0
-      if dex-lock $package $timeout $timeout2 $pace ; then
-         echo "$(date) got lock. switch to active node."
-         healthy_timeout=$timeout
-         start_timeout=$(packages/$package echo start_timeout)
-         start_timeout=${start_timeout:-30}
-         stop_timeout=$timeout2
-         pkg_state="unknown"
-         role="active"
-      fi
+      dex-lock $package $timeout $timeout2 $pace && _activate
     ;;
 
     active)
       if ! dex-lock $package $timeout $timeout2 $pace ; then
-         echo "$(date) lock lost. shutting down."
-         stop="true"
+         [ $fail = "false" ] && echo "$(date) error: lock lost. failing package."
+         fail="true"
       fi
 
       old_state=$pkg_state
       #using functions to speed up the parser (I hope :P)
       case $pkg_state in
-       starting)        _starting ;;
-       running)         _running ;;
-       halting|failing) _halting ;;
-       halted|failed)   _halted ;;
-       unknown)         _unknown ;;
+       starting) must_stop_fail || _starting ;;
+       running)  must_stop_fail || _running ;;
+       halting|failing)            _halting ;;
+       halted|failed)              _halted ;;
+       unknown)  must_stop_fail || _unknown ;;
       esac # package_state
 
       if [ "$old_state" != "$pkg_state" ] ; then
          echo "$(date) package state changes to $pkg_state."
+         echo $role      > temp/lockdir_$package/role
+         echo $pkg_state > temp/lockdir_$package/pkg_state
       fi
     ;;
    esac # role

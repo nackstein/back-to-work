@@ -29,7 +29,7 @@ case $1 in
    . modules/vip.$os
    # --- programs start ---
    #)
-   #. modules/maintenance.$os
+   #. modules/maintenance.all
 
    #if this point is reached then everything was ok. return 0
    exit 0
@@ -40,7 +40,7 @@ case $1 in
    # each module should try to not exit and let other modules execute
    # --- programs stop ---
    . modules/vip.$os
-   #. modules/maintenance.$os
+   #. modules/maintenance.all
 
    #modules can set ret to 1 to signal an error
    exit $ret
@@ -51,7 +51,7 @@ case $1 in
    failed_check=0
 
    . modules/vip.$os
-   #. modules/maintenance.$os
+   #. modules/maintenance.all
 
    #by default if num_check=0 you will exit with 1. package is down.
    [ "$failed_check" -eq "$num_check" ] && exit 1

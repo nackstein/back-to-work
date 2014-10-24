@@ -15,6 +15,7 @@ case $1 in
       eval vip_netmask=\$vip_netmask_$i
 
       netsh interface ip add address name="$vip_netdev" addr=$vip_ip mask=$vip_netmask || exit 1
+      #arping not needed. netsh send unsolicited arp request!
 
       i=$((i+1))
       eval vip_ip=\$vip_ip_$i

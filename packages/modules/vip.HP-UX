@@ -30,7 +30,8 @@ case $1 in
       if [ -n "$vip_netdev" ] ; then
          if ! ping $vip_ip -n 2 -m 1 ; then
             ifconfig $vip_netdev $vip_ip netmask $vip_netmask up || exit 1
-            traceroute -q 1 -w 2 -m 1 -s $vip_ip 0.0.0.0 &
+            #TODO: check if ifconfig send unsolicited arp request!
+            traceroute -q 1 -w 2 -m 1 -s $vip_ip 0.0.0.0 & #FIXME: probably this is useless
          else
             echo "$(date) ip address $vip_ip is in use."
             exit 1

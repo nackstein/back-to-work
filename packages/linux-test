@@ -10,7 +10,8 @@ timeout=20
 start_timeout=10
 stop_timeout=10
 
-vip_ip_0=172.24.49.200; vip_prefix_0=26; vip_network_0=172.24.49.192
+#vip_ip_0=172.24.49.200; vip_prefix_0=26; vip_network_0=172.24.49.192
+vip_ip_0=172.22.123.93; vip_prefix_0=23; vip_netdev_0=eth0
 drbd_res_0="data"; drbd_vol_0_0="/dev/drbd1"; drbd_dir_0_0="/data"
 nfs_dir_0="/data"; nfs_client_0_0="172.24.49.193"; nfs_opt_0_0="rw,no_root_squash,fsid=500"
 
@@ -33,14 +34,15 @@ case $1 in
    #for maintenance you can wrap all with () and add maintenance module
    #(
    #. modules/drbd.$os
-   . modules/pr.$os
-   . modules/fs.$os
+   #. modules/pr.$os
+   #. modules/fs.$os
+   touch /tmp/$(basename $0).maintenance
    . modules/vip.$os
    #. modules/nfs.$os
    #. modules/network.$os
    # --- programs start ---
    #)
-   #. modules/maintenance.$os
+   #. modules/maintenance.all
 
    #if this point is reached then everything was ok. return 0
    exit 0
@@ -52,11 +54,12 @@ case $1 in
    # each module should try to not exit and let other modules execute
    # --- programs stop ---
    #. modules/nfs.$os
+   rm /tmp/$(basename $0).maintenance
    . modules/vip.$os
-   . modules/fs.$os
-   . modules/pr.$os
+   #. modules/fs.$os
+   #. modules/pr.$os
    #. modules/drbd.$os
-   #. modules/maintenance.$os
+   #. modules/maintenance.all
 
    #modules can set ret to 1 to signal an error
    exit $ret
@@ -67,12 +70,14 @@ case $1 in
    failed_check=0
 
    #. modules/network.$os
-   . modules/pr.$os
-   . modules/fs.$os
+   #. modules/pr.$os
+   #. modules/fs.$os
    #. modules/drbd.$os
+   num_check=$((num_check+1))
+   [ -f /tmp/$(basename $0).maintenance ] || failed_check=$((failed_check+1))
    . modules/vip.$os
    #. modules/nfs.$os
-   #. modules/maintenance.$os
+   #. modules/maintenance.all
 
    #by default if num_check=0 you will exit with 1. package is down.
    [ "$failed_check" -eq "$num_check" ] && exit 1

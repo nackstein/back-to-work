@@ -1,0 +1,8 @@
+#!/usr/bin/perl
+
+use Socket;
+
+$name = shift;
+$name eq "-d" and $name = shift;
+@addresses = gethostbyname($name) or die "Can't resolve $name: $!\n";
+printf("%02x%02x%02x%02x\n", unpack("CCCC",@addresses[4]));

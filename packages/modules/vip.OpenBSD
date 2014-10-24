@@ -23,7 +23,7 @@ case $1 in
       if [ -n "$vip_netdev" ] ; then
          if ! ping -n -q -c 2 -w 1 $vip_ip ; then
             ifconfig $vip_netdev inet $vip_ip/$vip_prefix alias || exit 1
-            ping -n -q -c 2 -w 1 -r -I $vip_ip $vip_ip &
+            #no need for arping. ifconfig send unsolicited arp request!
          else
             echo "$(date) ip address $vip_ip is in use."
             exit 1
@@ -36,7 +36,6 @@ case $1 in
       i=$((i+1))
       eval vip_ip=\$vip_ip_$i
    done
-   wait
  ;;
 
  stop)

@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+
+use Socket;
+
+$name = shift;
+$name eq "-d" and $name = shift;
+@addresses = gethostbyname($name) or die "Can't resolve $name: $!\n";
+@addresses = map { inet_ntoa($_) } @addresses[4 .. $#addresses];
+
+print "@addresses[0]\n";

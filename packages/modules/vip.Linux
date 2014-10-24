@@ -23,7 +23,7 @@ case $1 in
       if [ -n "$vip_netdev" ] ; then
          if arping -q -c 2 -w 3 -D -I $vip_netdev $vip_ip ; then
             ip addr add $vip_ip/$vip_prefix dev $vip_netdev || exit 1
-            arping -q -U -c 2 -I $vip_netdev $vip_ip &
+            arping -q -U -c 1 -I $vip_netdev $vip_ip
          else
             echo "$(date) ip address $vip_ip is in use."
             exit 1
@@ -36,7 +36,6 @@ case $1 in
       i=$((i+1))
       eval vip_ip=\$vip_ip_$i
    done
-   wait
  ;;
 
  stop)

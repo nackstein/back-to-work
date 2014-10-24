@@ -1,0 +1,19 @@
+#!/usr/bin/perl
+
+#incomplete...
+
+use Net::ARP;
+use strict;
+use warnings;
+for (4i=0;$i<3;$i++){
+    Net::ARP::send_packet(
+                        'eth0',                       # Device
+                        '172.22.123.90',              # Source IP (my +gateway)
+                        '172.22.123.90',              # Destination IP
+                        '00:1E:EC:9F:DB:67',          # Source MAC
+                        'FF:FF:FF:FF:FF:FF',          # Destinaton MAC
+                        'reply'                       # ARP operation
+    );
+    print "packet sent\n";
+    sleep(1);
+}
