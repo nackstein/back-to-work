@@ -119,8 +119,6 @@ _running () {
       healthy_timeout=$((healthy_timeout-pace))
    fi
 
-   echo "... healthy_timeout $healthy_timeout ..."
-
    if [ $healthy_timeout -le $pace ] ; then
       echo "$(date) error: timeout waiting for package good health."
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
