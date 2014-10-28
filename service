@@ -43,17 +43,15 @@ case $1 in
  ;;
 
  status)
-   read cluster_nodes < conf/cluster_nodes
-   for h in $cluster_nodes ; do
-      echo "\\033[1;34mlist of back-to-work processes running on: $h\\033[0;39m"
-      pgrep -l -f "^$shell_cmd ./back-to-work" | while read line ; do
-         #echo $line
-         package=${line##* }
-         pid=${line%% *}
-         read holder < ../dex-lock/temp/${package}_holder
-         echo "[process-pid: $pid]  [package-name: $package]  [active-on: $holder]"
-      done
-      echo
+   shell_cmd=$(head -1 back-to-work)
+   shell_cmd=${shell_cmd#\#!}
+   pgrep -l -f "^$shell_cmd ./back-to-work ${2:-.*}" | while read line ; do
+      package=${line##* }
+      pid=${line%% *}
+      read holder foo < ../dex-lock/temp/${package}_htvp
+      read role      < temp/lockdir_$package/role
+      read pkg_state < temp/lockdir_$package/pkg_state
+      echo "package=$package; pid=$pid; role=$role; pkg_state=$pkg_state; lock_holder=$holder;"
    done
  ;;
 

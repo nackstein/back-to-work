@@ -38,9 +38,9 @@ quit () {
 }
 
 #do not immediately exit on kill! we must stop the package before quitting!
-trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; stop="true"' HUP
-trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; stop="true"' INT
-trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; stop="true"' TERM
+trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; must_halt="true"' HUP
+trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; must_halt="true"' INT
+trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; must_halt="true"' TERM
 trap 'echo "$(date) received signal SIGUSR1. re-reading package parameters." ; read_conf' USR1
 
 if ! mkdir temp/lockdir_$package 2> /dev/null ; then
@@ -50,8 +50,8 @@ fi
 
 read_conf
 role="stand-by"
-stop="false"
-fail="false"
+must_halt="false"
+must_fail="false"
 echo $role > temp/lockdir_$package/role
 echo ""    > temp/lockdir_$package/pkg_state
 #avoid using built-in sleep (see mksh) in backgroud. 
@@ -154,10 +154,8 @@ _halted () {
       quit 0
    fi
    echo "$(date) package $pkg_state. restarting as stand-by."
-   dex-release $package $timeout $timeout2
-   sleep $pace
-   role="stand-by"
-   fail="false"
+   dex-release $package $timeout $timeout2 ; sleep $pace
+   role="stand-by" ; must_fail="false"
    echo $role > temp/lockdir_$package/role
    echo ""    > temp/lockdir_$package/pkg_state
 }
@@ -221,12 +219,12 @@ _activate () {
    packages/$package status >> log/$package.log 2>&1 & status_pid=$!
 }
 
-must_stop_fail () {
-   if [ "$stop" = "true" -o "$fail" = "true" ] ; then
+_must_halt_fail () {
+   if [ "$must_halt" = "true" -o "$must_fail" = "true" ] ; then
       [ -n "$start_pid" ] && kill $start_pid 2> /dev/null && sleep 1
       packages/$package stop >> log/$package.log 2>&1 & stop_pid=$!
-      [ "$fail" = "true" ] && pkg_state="failing"
-      [ "$stop" = "true" ] && pkg_state="halting"
+      [ "$must_fail" = "true" ] && pkg_state="failing"
+      [ "$must_halt" = "true" ] && pkg_state="halting"
       return 0
    fi
    return 1
@@ -239,24 +237,24 @@ while true ; do
    wait $sleep_pid ; $sleep_cmd $pace & sleep_pid=$!
    case $role in
     stand-by)
-      [ "$stop" = "true" ] && quit 0
+      [ "$must_halt" = "true" ] && quit 0
       dex-lock $package $timeout $timeout2 $pace && _activate
     ;;
 
     active)
       if ! dex-lock $package $timeout $timeout2 $pace ; then
-         [ $fail = "false" ] && echo "$(date) error: lock lost. failing package."
-         fail="true"
+         [ "$must_fail" = "false" ] && echo "$(date) error: lock lost. failing package."
+         must_fail="true"
       fi
 
       old_state=$pkg_state
       #using functions to speed up the parser (I hope :P)
       case $pkg_state in
-       starting) must_stop_fail || _starting ;;
-       running)  must_stop_fail || _running ;;
-       halting|failing)            _halting ;;
-       halted|failed)              _halted ;;
-       unknown)  must_stop_fail || _unknown ;;
+       starting) _must_halt_fail || _starting ;;
+       running)  _must_halt_fail || _running ;;
+       halting|failing)             _halting ;;
+       halted|failed)               _halted ;;
+       unknown)  _must_halt_fail || _unknown ;;
       esac # package_state
 
       if [ "$old_state" != "$pkg_state" ] ; then
