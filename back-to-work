@@ -5,6 +5,18 @@
 
 export LANG=C
 
+#check if jobs control is required for a correct wait command
+shell_cmd=$(head -1 $0)
+case $(uname) in
+ HP-UX)
+   case "$shell_cmd" in
+    */sh|*/ksh)
+      set -m
+    ;;
+   esac
+ ;;
+esac
+
 cd ${0%/*}
 [ -f conf/lock_path ] && read lock_path < conf/lock_path
 export PATH=${lock_path:-../dex-lock}:$PATH
