@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+# this is a wrapper for platforms where setsid command is missing.
+
+use strict;
+use warnings;
+use POSIX qw(setsid);
+setsid();
+exec @ARGV;

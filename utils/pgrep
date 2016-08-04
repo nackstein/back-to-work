@@ -1,0 +1,25 @@
+#!/bin/dash
+
+# Copyright (c) 2014 - 2016 Luigi Tarenga <luigi.tarenga@gmail.com>
+# Distributed under the terms of a MIT license.
+
+#wrapper to pgrep. useful for OpenBSD
+
+signal=TERM
+while getopts "afl" opt; do
+   case "$opt" in
+    a) : ;;
+    f) : ;;
+    l) : ;;
+    ?) exit 1 ;;
+   esac
+done
+
+case $(uname) in
+ OpenBSD)
+   pgrep -l -f "$@"
+ ;;
+ *)
+   pgrep -a -f "$@"
+ ;;
+esac
