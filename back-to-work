@@ -1,21 +1,14 @@
-#!/bin/sh
+#!/bin/dash
 
-#Copyright (c) 2014 Luigi Tarenga <luigi.tarenga@gmail.com>
-#Distributed under the terms of a MIT license.
+# Copyright (c) 2014 - 2016 Luigi Tarenga <luigi.tarenga@gmail.com>
+# Distributed under the terms of a MIT license.
 
 export LANG=C
 
-#check if jobs control is required for a correct wait command
-shell_cmd=$(head -1 $0)
-case $(uname) in
- HP-UX)
-   case "$shell_cmd" in
-    */sh|*/ksh)
-      set -m
-    ;;
-   esac
- ;;
-esac
+#
+# uncomment on HP-UX if using sh or ksh
+# set -m
+#
 
 cd ${0%/*}
 [ -f conf/lock_path ] && read lock_path < conf/lock_path
@@ -29,7 +22,7 @@ unset lock_path
 
 package=$1
 if [ -z "$package" ] ; then
-   echo "Usage: ${0##*/} { package-name}"
+   echo "Usage: ${0##*/} { package-name }"
    exit 0
 fi
 
@@ -37,6 +30,7 @@ read_conf () {
    pace=$(packages/$package echo pace); pace=${pace:-4}
    timeout=$(packages/$package echo timeout); timeout=${timeout:-30}
    timeout2=$(packages/$package echo stop_timeout); timeout2=${timeout2:-30}
+   priority=$(packages/$package echo $(hostname)_priority); priority=${priority:--1}
    start_timeout=$(packages/$package echo start_timeout); start_timeout=${start_timeout:-30}
    stop_timeout=$timeout2
    shell_cmd=$(head -1 packages/$package); shell_cmd=${shell_cmd#\#!}
@@ -49,14 +43,13 @@ quit () {
    exit $1
 }
 
-#do not immediately exit on kill! we must stop the package before quitting!
 trap 'echo "$(date) received signal SIGHUP. starting halt sequence." ; must_halt="true"' HUP
 trap 'echo "$(date) received signal SIGINT. starting halt sequence." ; must_halt="true"' INT
 trap 'echo "$(date) received signal SIGTERM. starting halt sequence." ; must_halt="true"' TERM
 trap 'echo "$(date) received signal SIGUSR1. re-reading package parameters." ; read_conf' USR1
 
 if ! mkdir temp/lockdir_$package 2> /dev/null ; then
-   echo "temp/lockdir_$1 already exist. back-to-work is already running for package $1."
+   echo "$(date) back-to-work is already running for package $1."
    exit 1
 fi
 
@@ -72,8 +65,9 @@ sleep_cmd=$(which sleep)
 
 dex-init $package $timeout $timeout2
 
-###############################################
-#these function are here to speed up the parser 
+#
+# finite state machine loop use these functions to speed up the parser 
+#
 
 _starting () {
    if ! kill -0 $start_pid 2> /dev/null ; then
@@ -145,7 +139,6 @@ _halting () {
          [ "$pkg_state" = "failing" ] && pkg_state="failed"
          [ "$pkg_state" = "halting" ] && pkg_state="halted"
       else
-         #if stop script returns error it's safer to quit
          echo "$(date) stop script exited with error."
          pkg_state="halted"
       fi
@@ -218,11 +211,11 @@ _activate () {
    echo $role      > temp/lockdir_$package/role
    echo $pkg_state > temp/lockdir_$package/pkg_state
 
-   if utils/pkill -0 -x -f "$shell_cmd packages/$package start" ; then
+   if pkill -0 -x -f "$shell_cmd packages/$package start" ; then
       echo "$(date) error: start script already running."
       quit 1
    fi
-   if utils/pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
+   if pkill -0 -x -f "$shell_cmd packages/$package stop" ; then
       echo "$(date) error: stop script already running."
       quit 1
    fi
@@ -242,7 +235,9 @@ _must_halt_fail () {
    return 1
 }
 
-###############################################
+#
+# finite state machine loop
+#
 
 printf "$(date) starting as stand-by node.\n" & sleep_pid=$!
 while true ; do
@@ -250,7 +245,7 @@ while true ; do
    case $role in
     stand-by)
       [ "$must_halt" = "true" ] && quit 0
-      dex-lock $package $timeout $timeout2 $pace && _activate
+      dex-lock $package $timeout $timeout2 $pace $priority && _activate
     ;;
 
     active)
@@ -260,7 +255,6 @@ while true ; do
       fi
 
       old_state=$pkg_state
-      #using functions to speed up the parser (I hope :P)
       case $pkg_state in
        starting) _must_halt_fail || _starting ;;
        running)  _must_halt_fail || _running ;;
