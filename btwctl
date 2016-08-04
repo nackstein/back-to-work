@@ -1,0 +1,67 @@
+#!/bin/dash
+
+cd ${0%/*}
+
+case $1 in
+ start)
+   if [ -z "$2" ] ; then
+      echo you need to specify a package name.
+      exit 1
+   fi 
+   umask 022
+   ulimit -S -c 0
+   setsid ./back-to-work $2 >> log/back-to-work.$2.log 2>&1 < /dev/null &
+   echo back-to-work started in background. check logs for status.
+ ;;
+
+ stop)
+   if [ -z "$2" ] ; then
+      echo you need to specify a package name.
+      exit 1
+   fi 
+   printf "sending TERM signal and waiting for package to halt."
+   shell_cmd=$(head -1 back-to-work)
+   shell_cmd=${shell_cmd#\#!}
+   pkill -x -f "$shell_cmd ./back-to-work $2"
+   while pkill -0 -x -f "$shell_cmd ./back-to-work $2" ; do
+      sleep 1
+      printf .
+   done
+   echo " done."
+ ;;
+
+ check-conf)
+   if [ -z "$2" ] ; then
+      echo you need to specify a package name.
+      exit 1
+   fi 
+   read cluster_nodes < conf/cluster_nodes
+   echo md5 checksum of lock servers configuration
+   for h in $cluster_nodes ; do
+      ssh $h "cd $PWD ; md5sum ../dex-lock/conf/lock_servers"
+   done
+   echo
+
+   echo md5 checksum of package $2 configuration
+   for h in $cluster_nodes ; do
+      ssh $h "cd $PWD ; md5sum packages/$2"
+   done
+ ;;
+
+ status)
+   shell_cmd=$(head -1 back-to-work)
+   shell_cmd=${shell_cmd#\#!}
+   pgrep -a -f "^$shell_cmd \\./back-to-work ${2:-.*}$" | while read line ; do
+      package=${line##* }
+      pid=${line%% *}
+      read holder foo < ../dex-lock/temp/${package}_htsp
+      read role      < temp/lockdir_$package/role
+      read pkg_state < temp/lockdir_$package/pkg_state
+      echo "package=$package; pid=$pid; role=$role; pkg_state=$pkg_state; lock_holder=$holder;"
+   done
+ ;;
+
+ *)
+   echo "Usage: ${0##*/} { start | stop | status | check-conf }"
+   echo "  Main script to init, start or stop the package monitor service."
+esac
