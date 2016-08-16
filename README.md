@@ -39,3 +39,6 @@ execute the same command on every cluster node. You will see that only one will 
 # Bla bla bla #
 
 wiki incomplete. read the code :D
+
+I opended a dedicated google site page at: https://sites.google.com/site/shellclustersuite
+where you can download latest version of back-to-work and dex-lock
